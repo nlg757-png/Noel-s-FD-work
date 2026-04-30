@@ -446,6 +446,7 @@
       "Ladder backfill order: When moving a Ladder for backfill, use L2 first, then L8.",
       "Vacant regular-ladder station preference: If the vacant station normally houses a regular Ladder, backfill it with a regular Ladder before an Engine when possible. Use L2 first, then L8 if L2 is committed or already assigned. Tiller-only stations do not trigger this preference.",
       "Engine-and-ladder vacancy priority: When a station that normally has both an Engine and a regular Ladder is fully vacant, fill the ladder need first. Use L2 before E2 or any other engine if L2 is available.",
+      "Northwest ladder corridor exception: FS02 and FS22 are engine-first backfill stations unless FS02 and FS22 are both fully out of service, meaning E2, L2, E22, and L22 are all committed. Only then consider placing a Ladder at FS02 or FS22.",
       "Engine-before-ladder source protection: Except for the L2 then L8 ladder-distribution rule, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.",
       "Rescue centering note: If only one Rescue remains available citywide, mention that Rescue coverage should be centered at FS03 or FS07 if operations allow, but do not assign R1 or R2 as backfill.",
       "County crew preference: County stations FS05, FS06, FS13, and FS17 should be backfilled with a 4-person crew when possible.",
@@ -458,7 +459,7 @@
       "Single-apparatus and engine-tanker station protection: Do not use a unit from a station that has only one movable company, including single-engine stations and engine-plus-tanker stations such as FS05, FS06, and FS13.",
       "Map proximity: After source-station protection, use the closest practical apparatus from the station map. For FS02, FS07 is the closest practical source, so E7 is preferred when available.",
       "FS05 proximity: For FS05, prefer E16 when available before reaching farther north/west companies such as E2.",
-      "Rescue station engine protection: R1 and R2 should not be left without an Engine at their home station when another equally practical backfill unit is available. This is a caution, not a reason to ignore the closest map-based move when the source station still has staffed apparatus in quarters.",
+      "Rescue station engine protection: E3 cannot be used as a backfill piece because it is housed with R1. R1 cannot backfill and has no water. R2 should not be left without E7 when another equally practical backfill unit is available.",
       "Backfill apparatus eligibility: Only Engines and regular Ladders can backfill a vacant station. Tillers, Rescues, and Tankers cannot be assigned as backfill pieces.",
       "Tiller restriction: L1, L7, and L11 may remain in quarters as their station's apparatus, but they are never to be moved as backfill pieces.",
     ];
@@ -572,11 +573,22 @@
       return station.apparatus.some(isRegularLadder);
     }
 
+    function northwestLadderCorridorFullyOut() {
+      return ["E2", "L2", "E22", "L22"].every(unit => committed.has(unit));
+    }
+
+    function shouldFillLadderNeedFirst(station) {
+      if (!stationHasRegularLadder(station)) return false;
+      if ((station.id === "02" || station.id === "22") && !northwestLadderCorridorFullyOut()) return false;
+      return true;
+    }
+
     function isPumpLess(unit) {
       return TILLERS.has(unit) || RESCUES.has(unit);
     }
 
     function isBackfillEligible(unit) {
+      if (unit === "E3") return false;
       return isEngine(unit) || isRegularLadder(unit);
     }
 
@@ -614,7 +626,7 @@
 
       const unitsLeftAtHome = home.apparatus.filter(homeUnit => {
         if (homeUnit === unit) return false;
-        return !committed.has(homeUnit) && remainingUnits.has(homeUnit);
+        return !committed.has(homeUnit) && (remainingUnits.has(homeUnit) || !isBackfillEligible(homeUnit));
       });
 
       if (!unitsLeftAtHome.some(countsAsHomeCoverage)) return 100;
@@ -760,12 +772,14 @@ Assignment instructions:
 - Consider the station each moved unit comes from. Do not solve one vacant station by making the moved unit's home station uncovered.
 - A tanker alone does not keep a source station covered. Do not use engines from engine-tanker stations such as E5, E6, or E13 as backfill if that leaves only the tanker behind.
 - Do not use units from single-apparatus source stations such as E19 for backfill, because that creates a new empty station.
+- Never assign E3 as backfill. E3 must remain with R1 because R1 cannot backfill and has no water.
 - Use the map to prefer the closest practical source company after hard source-station protection. For FS02, FS07 is the closest practical source, so E7 should be preferred when available.
 - For FS05, prefer E16 when available before reaching farther north/west companies such as E2.
 - R1 and R2 should not be left at their home station without an Engine if an equally close/practical option exists, but this should not block a closest practical map-based move when that station still has staffed apparatus in quarters.
 - Never assign L1, L7, L11, R1, R2, T5, T6, or T13 as backfill. Mention Rescue centering as a note only; do not use a Rescue as the backfill piece.
 - If the vacant station normally houses a regular Ladder, prefer a regular Ladder backfill before an Engine when possible. Use L2 first, then L8 if L2 is unavailable or already assigned. Tiller-only stations do not trigger this preference.
 - When a station with both an Engine and a regular Ladder is fully vacant, fill the ladder need first. Use L2 before E2 or any other engine if L2 is available.
+- FS02 and FS22 are exceptions because of northwest corridor ladder coverage. Backfill FS02 or FS22 with an Engine first unless E2, L2, E22, and L22 are all committed. Only then consider a Ladder at FS02 or FS22.
 - Outside the L2/L8 ladder-distribution exception, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.
 - If a station cannot be covered, explain why in alerts.
 - If more than one station will remain empty after all available units are assigned, set mutualAid.flag to true and explain that neighboring jurisdiction mutual aid should be requested.
@@ -863,7 +877,7 @@ Required JSON shape:
       }
 
       vacantStations
-        .filter(station => stationHasRegularLadder(station) && station.id !== "11")
+        .filter(station => shouldFillLadderNeedFirst(station) && station.id !== "11")
         .forEach(station => {
           if (coveredStations.has(station.id)) return;
           const unit = pickLadderForLadderStation(station, remainingUnits);
@@ -877,7 +891,7 @@ Required JSON shape:
 
         let unit = null;
 
-        if (stationHasRegularLadder(station)) {
+        if (shouldFillLadderNeedFirst(station)) {
           unit = pickLadderForLadderStation(station, remainingUnits);
           if (unit) {
             assign(unit, station, `${stationLabel(station)} is an engine-and-ladder station that is fully vacant. Use ${unit} first to fill the ladder need before sending an engine.`);
