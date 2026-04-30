@@ -1,0 +1,1122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VBFD Backfill Command Tool</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --text: #16202a;
+      --muted: #5c6875;
+      --line: #d8dee6;
+      --line-strong: #aeb8c4;
+      --danger: #b42318;
+      --danger-bg: #fff1f0;
+      --warning: #7a4b00;
+      --warning-bg: #fff8e6;
+      --success: #0f6b46;
+      --success-bg: #e7f6ee;
+      --primary: #137a54;
+      --primary-dark: #0f5f42;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 15px;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    p {
+      line-height: 1.45;
+    }
+
+    .subhead {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .control {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-weight: 700;
+      color: #334252;
+    }
+
+    input[type="date"] {
+      border: 1px solid #b9c2cc;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font: inherit;
+      color: var(--text);
+      background: #fff;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .secondary-button {
+      min-height: 38px;
+      padding: 8px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .unit-groups {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      min-width: 58px;
+      min-height: 38px;
+      padding: 9px 10px;
+      border: 1px solid #9fafbf;
+      border-radius: 6px;
+      background: #f9fbfc;
+      color: var(--text);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .chip.committed {
+      border-color: var(--danger);
+      background: var(--danger-bg);
+      color: var(--danger);
+      text-decoration: line-through;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #f9fbfc;
+    }
+
+    .stat.danger {
+      border-color: #e19b9b;
+      background: var(--danger-bg);
+    }
+
+    .stat-value {
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .stat-label {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      border-radius: 6px;
+      padding: 5px 8px;
+      background: #eef2f6;
+      color: #263544;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .badge.danger {
+      background: var(--danger-bg);
+      color: #9f1d16;
+    }
+
+    .badge.warning {
+      background: #fff4d8;
+      color: var(--warning);
+      border: 1px solid #f0c36b;
+    }
+
+    .generate {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid var(--primary-dark);
+      border-radius: 6px;
+      background: var(--primary);
+      color: white;
+      padding: 12px 14px;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .generate:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .hidden { display: none; }
+
+    .error {
+      border: 1px solid #e19b9b;
+      background: var(--danger-bg);
+      color: #9f1d16;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+      font-weight: 800;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      margin-bottom: 12px;
+    }
+
+    .alert-card {
+      border: 1px solid #f0c36b;
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--warning-bg);
+      color: #5f3b00;
+      margin-bottom: 12px;
+    }
+
+    .mutual-aid {
+      border: 1px solid var(--danger);
+      background: var(--danger);
+      color: white;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-weight: 900;
+    }
+
+    .assignment {
+      border-top: 1px solid #e3e8ef;
+      padding: 12px 0;
+    }
+
+    .assignment:first-of-type {
+      margin-top: 8px;
+    }
+
+    .success-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 6px;
+      background: var(--success-bg);
+      color: var(--success);
+      padding: 4px 8px;
+      margin-right: 8px;
+      font-weight: 900;
+    }
+
+    .reason {
+      color: var(--muted);
+      margin: 6px 0 0;
+    }
+
+    @media (max-width: 680px) {
+      main { padding: 12px; }
+      h1 { font-size: 23px; }
+      .controls, .control, .secondary-button { width: 100%; }
+      .control { justify-content: space-between; }
+      input[type="date"] { max-width: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>VBFD backfill command tool</h1>
+        <p class="subhead">Select units committed to the fire. The coverage impact updates immediately.</p>
+      </div>
+
+      <div class="controls">
+        <label class="control">
+          <span>Incident date</span>
+          <input id="incident-date" type="date" />
+        </label>
+
+        <label class="control">
+          <input id="navy-toggle" type="checkbox" />
+          <span>Navy confirmed at FS15</span>
+        </label>
+
+        <button id="reset-button" class="secondary-button" type="button">Reset</button>
+      </div>
+    </header>
+
+    <section class="section" aria-label="Committed unit selector">
+      <h2>Step 1: committed units</h2>
+      <div id="unit-groups" class="unit-groups"></div>
+    </section>
+
+    <section class="section" aria-label="Coverage impact">
+      <h2>Step 2: coverage impact</h2>
+      <div class="stats">
+        <div class="stat">
+          <div id="committed-count" class="stat-value">0</div>
+          <div class="stat-label">Units committed</div>
+        </div>
+        <div id="vacant-stat-card" class="stat">
+          <div id="vacant-count" class="stat-value">0</div>
+          <div class="stat-label">Stations vacant</div>
+        </div>
+        <div class="stat">
+          <div id="available-count" class="stat-value">0</div>
+          <div class="stat-label">Backfill-capable units available</div>
+        </div>
+        <div id="coverage-stat-card" class="stat">
+          <div id="coverage-percent" class="stat-value">100%</div>
+          <div class="stat-label">Current station coverage</div>
+        </div>
+      </div>
+      <div id="impact-badges" class="badges"></div>
+    </section>
+
+    <section id="generate-section" class="section hidden" aria-label="Generate backfill plan">
+      <h2>Step 3: generate plan</h2>
+      <button id="generate-button" class="generate" type="button">Generate backfill plan</button>
+    </section>
+
+    <div id="error" class="error hidden"></div>
+
+    <section id="results" class="section hidden" aria-label="Backfill plan result">
+      <h2>Backfill plan</h2>
+      <div id="mutual-aid"></div>
+      <div id="summary"></div>
+      <div id="alerts"></div>
+      <div id="assignments"></div>
+    </section>
+  </main>
+
+  <script>
+    const STATIONS = [
+      { id:"01", name:"First Landing", apparatus:["E1","L1"] },
+      { id:"02", name:"Davis Corner", apparatus:["E2","L2"] },
+      { id:"03", name:"London Bridge", apparatus:["E3","R1"], center:true },
+      { id:"04", name:"Chesapeake Beach", apparatus:["E4"] },
+      { id:"05", name:"Princess Anne", apparatus:["E5","T5"], county:true },
+      { id:"06", name:"Creeds", apparatus:["E6","T6"], county:true },
+      { id:"07", name:"Town Center", apparatus:["E7","L7","R2"], center:true },
+      { id:"08", name:"Oceana", apparatus:["E8","L8"] },
+      { id:"09", name:"Kempsville", apparatus:["E9"] },
+      { id:"10", name:"Woodstock", apparatus:["E10","L10"] },
+      { id:"11", name:"Beach Borough", apparatus:["E11","E14","L11"], priority:true },
+      { id:"12", name:"Seatack", apparatus:["E12"] },
+      { id:"13", name:"Blackwater", apparatus:["E13","T13"], county:true },
+      { id:"15", name:"Fort Story", apparatus:["E15"], navy:true },
+      { id:"16", name:"Plaza", apparatus:["E16","L16"] },
+      { id:"17", name:"Sandbridge", apparatus:["E17"], county:true },
+      { id:"18", name:"Green Run", apparatus:["E18"] },
+      { id:"19", name:"Stumpy Lake", apparatus:["E19"] },
+      { id:"20", name:"Little Neck", apparatus:["E20"] },
+      { id:"21", name:"General Booth", apparatus:["E21","L21"] },
+      { id:"22", name:"Burton Station", apparatus:["E22","L22"] },
+    ];
+
+    const TILLERS = new Set(["L1","L7","L11"]);
+    const RESCUES = new Set(["R1","R2"]);
+    const TANKERS = new Set(["T5","T6","T13"]);
+    const TANKER_PAIRS = { E5:"T5", E6:"T6", E13:"T13" };
+
+    const ADJACENCY = {
+      "01":["04","15","20"],
+      "02":["04","07","20","22"],
+      "03":["07","09","16","18","21"],
+      "04":["01","02","20"],
+      "05":["06","17","18","21"],
+      "06":["05","13","17"],
+      "07":["02","03","09","10","16","22"],
+      "08":["11","12","20"],
+      "09":["03","07","10","16","18","19"],
+      "10":["07","09","18","19"],
+      "11":["08","12","20"],
+      "12":["08","11","21"],
+      "13":["06","17"],
+      "15":["01"],
+      "16":["03","07","09","18"],
+      "17":["05","06","13","21"],
+      "18":["03","05","09","10","16","19","21"],
+      "19":["09","10","18"],
+      "20":["01","02","04","08"],
+      "21":["03","05","12","17","18"],
+      "22":["02","07"],
+    };
+
+    const RULES = [
+      "No vacant stations: No station stays empty if any unit is available to cover it.",
+      "Geographic balance: Distribute remaining units so no area of the city loses fire coverage entirely.",
+      "No adjacent ladder-only stations: Never assign ladders as the only coverage to two stations that share a boundary.",
+      "No adjacent pump-less stations: Tillers have no pump, but Tillers are not eligible backfill pieces and should not be assigned to cover vacant stations.",
+      "Station 11 priority: Beach Borough, FS11, must be backfilled with both an Engine and a Ladder when possible.",
+      "Engine 15 restriction: E15 may only be used for backfill if Navy resources are confirmed staffed at Station 15.",
+      "Navy coverage exception: When Navy resources are confirmed staffed at FS15, FS15 is considered covered and E15 may be moved for backfill without creating a new vacant station.",
+      "Ladder backfill order: When moving a Ladder for backfill, use L2 first, then L8.",
+      "Vacant regular-ladder station preference: If the vacant station normally houses a regular Ladder, backfill it with a regular Ladder before an Engine when possible. Use L2 first, then L8 if L2 is committed or already assigned. Tiller-only stations do not trigger this preference.",
+      "Engine-before-ladder source protection: Except for the L2 then L8 ladder-distribution rule, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.",
+      "Rescue centering note: If only one Rescue remains available citywide, mention that Rescue coverage should be centered at FS03 or FS07 if operations allow, but do not assign R1 or R2 as backfill.",
+      "County crew preference: County stations FS05, FS06, FS13, and FS17 should be backfilled with a 4-person crew when possible.",
+      "Seasonal engine restriction: Between May 1 and October 1, E11 and E14 are last resort for backfill and should only be used if no other unit is available.",
+      "Ladder 21 trigger: If L21 is committed, ladder coverage becomes a priority in the southern portion of the city.",
+      "Ladder 10 trigger: If L10 is committed, a backfill ladder should be assigned to the Kempsville corridor, FS09 or FS10.",
+      "Ladder 7 trigger: If L7 is committed, relocate L10, if available, to FS09.",
+      "Mutual aid threshold: If more than one station will remain empty after all available units are assigned, flag that mutual aid from neighboring jurisdictions should be requested.",
+      "Source station protection: Do not move a unit if that move would leave its home station uncovered. A tanker alone does not count as home-station coverage.",
+      "Single-apparatus and engine-tanker station protection: Do not use a unit from a station that has only one movable company, including single-engine stations and engine-plus-tanker stations such as FS05, FS06, and FS13.",
+      "Map proximity: After source-station protection, use the closest practical apparatus from the station map. For FS02, FS07 is the closest practical source, so E7 is preferred when available.",
+      "Rescue station engine protection: R1 and R2 should not be left without an Engine at their home station when another equally practical backfill unit is available. This is a caution, not a reason to ignore the closest map-based move when the source station still has staffed apparatus in quarters.",
+      "Backfill apparatus eligibility: Only Engines and regular Ladders can backfill a vacant station. Tillers, Rescues, and Tankers cannot be assigned as backfill pieces.",
+      "Tiller restriction: L1, L7, and L11 may remain in quarters as their station's apparatus, but they are never to be moved as backfill pieces.",
+    ];
+
+    const MAP_PROXIMITY = {
+      "01": ["15", "04", "20"],
+      "02": ["07", "22", "04", "20"],
+    };
+
+    const allUnits = STATIONS.flatMap(station => station.apparatus);
+    const stationById = Object.fromEntries(STATIONS.map(station => [station.id, station]));
+    let committed = new Set();
+    let navy = false;
+    let loading = false;
+    let result = null;
+    let error = null;
+
+    const dateInput = document.querySelector("#incident-date");
+    const navyToggle = document.querySelector("#navy-toggle");
+    const resetButton = document.querySelector("#reset-button");
+    const unitGroups = document.querySelector("#unit-groups");
+    const committedCount = document.querySelector("#committed-count");
+    const vacantCount = document.querySelector("#vacant-count");
+    const availableCount = document.querySelector("#available-count");
+    const coveragePercent = document.querySelector("#coverage-percent");
+    const vacantStatCard = document.querySelector("#vacant-stat-card");
+    const coverageStatCard = document.querySelector("#coverage-stat-card");
+    const impactBadges = document.querySelector("#impact-badges");
+    const generateSection = document.querySelector("#generate-section");
+    const generateButton = document.querySelector("#generate-button");
+    const errorBox = document.querySelector("#error");
+    const resultsSection = document.querySelector("#results");
+    const mutualAidBox = document.querySelector("#mutual-aid");
+    const summaryBox = document.querySelector("#summary");
+    const alertsBox = document.querySelector("#alerts");
+    const assignmentsBox = document.querySelector("#assignments");
+
+    function todayString() {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
+    }
+
+    function isSeasonal(dateString) {
+      if (!dateString) return false;
+      const date = new Date(`${dateString}T00:00:00`);
+      const year = date.getFullYear();
+      return date >= new Date(year, 4, 1) && date <= new Date(year, 9, 1, 23, 59, 59);
+    }
+
+    function stationLabel(station) {
+      return `FS${station.id} ${station.name}`;
+    }
+
+    function stationCoveragePercent(vacantCount) {
+      return Math.round(((STATIONS.length - vacantCount) / STATIONS.length) * 100);
+    }
+
+    function plannedCoverageStats() {
+      const vacantStations = getVacantStations();
+      const assignments = Array.isArray(result && result.assignments) ? result.assignments : [];
+      const beforeVacant = vacantStations.length;
+      const afterVacant = getProjectedVacantStations(assignments).length;
+
+      return {
+        totalStations: STATIONS.length,
+        beforeCovered: STATIONS.length - beforeVacant,
+        beforeVacant,
+        beforePercent: stationCoveragePercent(beforeVacant),
+        afterCovered: STATIONS.length - afterVacant,
+        afterVacant,
+        afterPercent: stationCoveragePercent(afterVacant),
+      };
+    }
+
+    function unitType(unit) {
+      if (TANKERS.has(unit)) return "Tanker";
+      if (TILLERS.has(unit)) return "Tiller ladder, pump-less";
+      if (RESCUES.has(unit)) return "Rescue, pump-less";
+      if (unit.startsWith("L")) return "Ladder with pump";
+      return "Engine with pump";
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function unitHomeStation(unit) {
+      return STATIONS.find(station => station.apparatus.includes(unit));
+    }
+
+    function isEngine(unit) {
+      return unit.startsWith("E");
+    }
+
+    function isRegularLadder(unit) {
+      return unit.startsWith("L") && !TILLERS.has(unit);
+    }
+
+    function isAnyLadder(unit) {
+      return unit.startsWith("L");
+    }
+
+    function stationHasRegularLadder(station) {
+      return station.apparatus.some(isRegularLadder);
+    }
+
+    function isPumpLess(unit) {
+      return TILLERS.has(unit) || RESCUES.has(unit);
+    }
+
+    function isBackfillEligible(unit) {
+      return isEngine(unit) || isRegularLadder(unit);
+    }
+
+    function countsAsHomeCoverage(unit) {
+      return !TANKERS.has(unit);
+    }
+
+    function getProjectedVacantStations(assignments) {
+      const assignedToStation = new Map();
+      const movedUnits = new Set();
+
+      (Array.isArray(assignments) ? assignments : []).forEach(assignment => {
+        if (!assignment || !assignment.unit || !assignment.toStation) return;
+        assignedToStation.set(assignment.toStation, true);
+        movedUnits.add(assignment.unit);
+      });
+
+      return STATIONS.filter(station => {
+        if (station.navy && navy) return false;
+        if (assignedToStation.has(station.id)) return false;
+
+        return !station.apparatus.some(unit => {
+          if (committed.has(unit)) return false;
+          if (movedUnits.has(unit)) return false;
+          return countsAsHomeCoverage(unit);
+        });
+      });
+    }
+
+    function sourceStationRisk(unit, remainingUnits) {
+      if (unit === "E15" && navy) return 0;
+
+      const home = unitHomeStation(unit);
+      if (!home) return 0;
+
+      const unitsLeftAtHome = home.apparatus.filter(homeUnit => {
+        if (homeUnit === unit) return false;
+        return !committed.has(homeUnit) && remainingUnits.has(homeUnit);
+      });
+
+      if (!unitsLeftAtHome.some(countsAsHomeCoverage)) return 100;
+
+      const leavesRescueWithoutEngine = home.apparatus.some(homeUnit => RESCUES.has(homeUnit) && remainingUnits.has(homeUnit))
+        && isEngine(unit)
+        && !unitsLeftAtHome.some(isEngine);
+
+      if (leavesRescueWithoutEngine) return 20;
+      return 0;
+    }
+
+    function canMoveFromSource(unit, remainingUnits) {
+      return sourceStationRisk(unit, remainingUnits) < 100;
+    }
+
+    function mapProximityRank(toStationId, fromStationId) {
+      const preferred = MAP_PROXIMITY[toStationId];
+      if (preferred && preferred.includes(fromStationId)) return preferred.indexOf(fromStationId);
+
+      const adjacent = ADJACENCY[toStationId] || [];
+      if (adjacent.includes(fromStationId)) return 20 + adjacent.indexOf(fromStationId);
+      return 100;
+    }
+
+    function ladderBackfillOrder(unit) {
+      if (unit === "L2") return 0;
+      if (unit === "L8") return 1;
+      if (isRegularLadder(unit)) return 10;
+      return 100;
+    }
+
+    function pickLadderForLadderStation(station, remainingUnits) {
+      return [...remainingUnits]
+        .filter(unit => (unit === "L2" || unit === "L8") && canMoveFromSource(unit, remainingUnits))
+        .sort((a, b) => {
+          const homeA = unitHomeStation(a);
+          const homeB = unitHomeStation(b);
+          return ladderBackfillOrder(a) - ladderBackfillOrder(b)
+            || mapProximityRank(station.id, homeA ? homeA.id : "") - mapProximityRank(station.id, homeB ? homeB.id : "")
+            || a.localeCompare(b, undefined, { numeric: true });
+        })[0];
+    }
+
+    function sortUnitsForBackfill(units, toStationId, remainingUnits = new Set(units)) {
+      const seasonal = isSeasonal(dateInput.value);
+      const ladderOrder = { L2: 1, L8: 2 };
+
+      return [...units].sort((a, b) => {
+        const homeA = unitHomeStation(a);
+        const homeB = unitHomeStation(b);
+        const sourceRiskA = sourceStationRisk(a, remainingUnits);
+        const sourceRiskB = sourceStationRisk(b, remainingUnits);
+        const proximityA = homeA ? mapProximityRank(toStationId, homeA.id) : 100;
+        const proximityB = homeB ? mapProximityRank(toStationId, homeB.id) : 100;
+        const adjacentA = homeA && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeA.id) ? 0 : 1;
+        const adjacentB = homeB && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeB.id) ? 0 : 1;
+        const seasonalA = seasonal && (a === "E11" || a === "E14") ? 1 : 0;
+        const seasonalB = seasonal && (b === "E11" || b === "E14") ? 1 : 0;
+        const ladderA = ladderOrder[a] || 20;
+        const ladderB = ladderOrder[b] || 20;
+
+        return seasonalA - seasonalB
+          || proximityA - proximityB
+          || adjacentA - adjacentB
+          || sourceRiskA - sourceRiskB
+          || ladderA - ladderB
+          || a.localeCompare(b, undefined, { numeric: true });
+      });
+    }
+
+    function getVacantStations() {
+      return STATIONS.filter(station => {
+        if (station.navy && navy) return false;
+        return station.apparatus.every(unit => committed.has(unit));
+      });
+    }
+
+    function getAvailableUnits() {
+      return allUnits.filter(unit => !committed.has(unit) && (navy || unit !== "E15") && isBackfillEligible(unit));
+    }
+
+    function clearResultState() {
+      result = null;
+      error = null;
+    }
+
+    function buildPrompt() {
+      const seasonal = isSeasonal(dateInput.value);
+      const vacantStations = getVacantStations();
+      const availableUnits = getAvailableUnits();
+      const stationInventory = STATIONS.map(station => ({
+        id: station.id,
+        name: station.name,
+        apparatus: station.apparatus,
+        county: Boolean(station.county),
+        center: Boolean(station.center),
+        priority: Boolean(station.priority),
+        navy: Boolean(station.navy),
+      }));
+
+      return `
+You are generating a Virginia Beach Fire Department backfill plan for an on-duty Battalion Chief.
+Write plainly and operationally. Do not sound like software. Give short reasons a Battalion Chief can act on immediately.
+
+Return ONLY valid JSON. Do not include markdown, code fences, comments, or surrounding text.
+
+Incident date: ${dateInput.value}
+Seasonal restriction active: ${seasonal ? "YES, E11 and E14 are last resort between May 1 and October 1." : "NO."}
+Navy resources confirmed staffed at FS15: ${navy ? "YES, E15 may be used for backfill." : "NO, E15 must not be used for backfill."}
+
+Committed units at the fire:
+${JSON.stringify(Array.from(committed).sort(), null, 2)}
+
+Vacant stations requiring coverage:
+${JSON.stringify(vacantStations.map(station => ({ id: station.id, name: station.name })), null, 2)}
+
+Available units for backfill:
+${JSON.stringify(availableUnits.map(unit => ({ unit, type: unitType(unit) })), null, 2)}
+
+Complete station inventory:
+${JSON.stringify(stationInventory, null, 2)}
+
+Adjacency map, based on shared station response area boundaries:
+${JSON.stringify(ADJACENCY, null, 2)}
+
+Apparatus classification:
+- Tillers are L1, L7, L11. They do not have pumps and cannot be assigned as backfill pieces.
+- Rescues are R1, R2. They do not have pumps and cannot be assigned as backfill pieces.
+- Tankers are T5, T6, T13.
+- Tankers cannot be assigned as backfill pieces.
+- Engines are all E-units and have pumps.
+- L2, L8, L10, L16, L21, and L22 are regular ladders and have pumps.
+- There is no Station 14. E14 is housed at Station 11.
+- Tanker auto-pairs: E5 responds with T5, E6 responds with T6, and E13 responds with T13.
+
+Backfill rules to enforce:
+${RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}
+
+Assignment instructions:
+- Assign available units to vacant stations only.
+- Keep assignments realistic and minimal while covering every vacant station possible.
+- Consider the station each moved unit comes from. Do not solve one vacant station by making the moved unit's home station uncovered.
+- A tanker alone does not keep a source station covered. Do not use engines from engine-tanker stations such as E5, E6, or E13 as backfill if that leaves only the tanker behind.
+- Do not use units from single-apparatus source stations such as E19 for backfill, because that creates a new empty station.
+- Use the map to prefer the closest practical source company after hard source-station protection. For FS02, FS07 is the closest practical source, so E7 should be preferred when available.
+- R1 and R2 should not be left at their home station without an Engine if an equally close/practical option exists, but this should not block a closest practical map-based move when that station still has staffed apparatus in quarters.
+- Never assign L1, L7, L11, R1, R2, T5, T6, or T13 as backfill. Mention Rescue centering as a note only; do not use a Rescue as the backfill piece.
+- If the vacant station normally houses a regular Ladder, prefer a regular Ladder backfill before an Engine when possible. Use L2 first, then L8 if L2 is unavailable or already assigned. Tiller-only stations do not trigger this preference.
+- Outside the L2/L8 ladder-distribution exception, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.
+- If a station cannot be covered, explain why in alerts.
+- If more than one station will remain empty after all available units are assigned, set mutualAid.flag to true and explain that neighboring jurisdiction mutual aid should be requested.
+- Use station IDs in toStation, such as "11", not "FS11".
+
+Required JSON shape:
+{
+  "assignments": [
+    { "unit": "E2", "toStation": "11", "reason": "plain language BC-level explanation" }
+  ],
+  "alerts": ["any rule conflicts or concerns as strings"],
+  "mutualAid": { "flag": false, "reason": "plain language coverage status explanation" },
+  "summary": "2-3 sentence plain language summary a Battalion Chief would recognize"
+}
+`.trim();
+    }
+
+    function buildLocalPlan() {
+      const seasonal = isSeasonal(dateInput.value);
+      const vacantStations = getVacantStations();
+      const remainingUnits = new Set(getAvailableUnits());
+      const coveredStations = new Set();
+      const assignments = [];
+      const alerts = [];
+
+      if (!navy && allUnits.includes("E15")) {
+        alerts.push("E15 is excluded because Navy staffing at FS15 is not confirmed.");
+      }
+
+      alerts.push("Moves exclude units that would uncover their source station. Among valid moves, the planner prefers the closest practical map source.");
+
+      if (seasonal && (remainingUnits.has("E11") || remainingUnits.has("E14"))) {
+        alerts.push("Seasonal restriction is active. E11 and E14 are held as last-resort backfill units.");
+      }
+
+      function assign(unit, station, reason) {
+        if (!unit || !station || !remainingUnits.has(unit)) return false;
+        assignments.push({ unit, toStation: station.id, reason });
+        remainingUnits.delete(unit);
+        coveredStations.add(station.id);
+        return true;
+      }
+
+      function pick(station, predicate) {
+        return sortUnitsForBackfill(
+          [...remainingUnits].filter(unit => predicate(unit) && canMoveFromSource(unit, remainingUnits)),
+          station.id,
+          remainingUnits
+        )[0];
+      }
+
+      const station11 = vacantStations.find(station => station.id === "11");
+      if (station11) {
+        const engine = pick(station11, isEngine);
+        if (engine) {
+          assign(engine, station11, "FS11 is the priority station. Place an engine there first to restore pump coverage at Beach Borough.");
+        }
+
+        const ladder = pick(station11, isAnyLadder);
+        if (ladder) {
+          assign(ladder, station11, "FS11 should have ladder coverage when possible. This gives Beach Borough both engine and ladder capability.");
+        } else {
+          alerts.push("FS11 could not receive a ladder because no ladder was available.");
+        }
+      }
+
+      if (committed.has("L7") && remainingUnits.has("L10")) {
+        const fs09 = vacantStations.find(station => station.id === "09");
+        if (fs09 && !coveredStations.has("09")) {
+          assign("L10", fs09, "L7 is committed. Move L10 to FS09 to protect the Kempsville corridor.");
+        } else {
+          alerts.push("L7 is committed. L7 itself is not a backfill piece; keep L10 available for Kempsville corridor ladder coverage if FS09 is not vacant.");
+        }
+      }
+
+      if (committed.has("L10")) {
+        const corridor = vacantStations.find(station => (station.id === "09" || station.id === "10") && !coveredStations.has(station.id));
+        if (corridor) {
+          const ladder = pick(corridor, isRegularLadder);
+          if (ladder) {
+            assign(ladder, corridor, "L10 is committed. Put ladder coverage back into the Kempsville corridor.");
+          } else {
+            alerts.push("L10 is committed and no ladder is available for the Kempsville corridor.");
+          }
+        }
+      }
+
+      if (committed.has("L21")) {
+        alerts.push("L21 is committed. Keep southern ladder coverage in mind when reviewing the final move list.");
+      }
+
+      const remainingRescues = allUnits.filter(unit => RESCUES.has(unit) && !committed.has(unit));
+      if (remainingRescues.length === 1) {
+        alerts.push(`Only one Rescue remains available (${remainingRescues[0]}). Center Rescue coverage at FS03 or FS07 if operations allow, but do not use it as the backfill piece.`);
+      }
+
+      vacantStations.forEach(station => {
+        if (coveredStations.has(station.id)) return;
+
+        let unit = null;
+
+        if (stationHasRegularLadder(station)) {
+          unit = pickLadderForLadderStation(station, remainingUnits);
+          if (unit) {
+            assign(unit, station, `${stationLabel(station)} is a ladder station. Use ${unit} before an engine to keep ladder coverage spread through the city.`);
+            return;
+          }
+        }
+
+        unit = pick(station, unitId => isEngine(unitId) && (!seasonal || (unitId !== "E11" && unitId !== "E14")));
+        if (unit) {
+          assign(unit, station, `${stationLabel(station)} is vacant. Assign an engine to restore pump coverage.`);
+          return;
+        }
+
+        unit = pick(station, isRegularLadder);
+        if (unit) {
+          assign(unit, station, `${stationLabel(station)} is vacant. No engine was available, so use a ladder with a pump for coverage.`);
+          return;
+        }
+
+        unit = pick(station, unitId => isEngine(unitId));
+        if (unit) {
+          assign(unit, station, `${stationLabel(station)} is vacant. Use ${unit} as a last-resort engine move.`);
+          return;
+        }
+
+        unit = pick(station, isBackfillEligible);
+        if (unit) {
+          assign(unit, station, `${stationLabel(station)} is vacant. Use the closest practical backfill-capable apparatus to avoid leaving the station empty.`);
+          return;
+        }
+      });
+
+      vacantStations.forEach(station => {
+        if (station.county && coveredStations.has(station.id)) {
+          alerts.push(`${stationLabel(station)} is a county station. Prefer a 4-person crew for that move if available.`);
+        }
+      });
+
+      assignments.forEach(first => {
+        const firstUnitLadderOnly = isAnyLadder(first.unit);
+        const firstUnitPumpLess = isPumpLess(first.unit);
+        assignments.forEach(second => {
+          if (first === second) return;
+          const adjacent = ADJACENCY[first.toStation] && ADJACENCY[first.toStation].includes(second.toStation);
+          if (!adjacent) return;
+          if (firstUnitLadderOnly && isAnyLadder(second.unit)) {
+            alerts.push(`Check ladder-only adjacency: FS${first.toStation} and FS${second.toStation} share a boundary.`);
+          }
+          if (firstUnitPumpLess && isPumpLess(second.unit)) {
+            alerts.push(`Check pump-less adjacency: FS${first.toStation} and FS${second.toStation} share a boundary.`);
+          }
+        });
+      });
+
+      const uncovered = getProjectedVacantStations(assignments);
+
+      uncovered.forEach(station => {
+        alerts.push(`${stationLabel(station)} remains uncovered because no available unit could be assigned.`);
+      });
+
+      const mutualAidFlag = uncovered.length > 1;
+      if (mutualAidFlag) {
+        alerts.push(`Request mutual aid. ${uncovered.length} stations remain uncovered after internal moves: ${uncovered.map(stationLabel).join(", ")}.`);
+      }
+
+      const uniqueAlerts = [...new Set(alerts)];
+      const coveredCount = Math.max(0, STATIONS.length - uncovered.length);
+      const initiallyCoveredCount = STATIONS.length - vacantStations.length;
+
+      return {
+        assignments,
+        alerts: uniqueAlerts,
+        mutualAid: {
+          flag: mutualAidFlag,
+          reason: mutualAidFlag
+            ? `${uncovered.length} stations remain uncovered after available units are assigned: ${uncovered.map(stationLabel).join(", ")}. Request mutual aid from neighboring jurisdictions.`
+            : uncovered.length === 1
+              ? "One station remains uncovered. Continue internal moves if another unit becomes available."
+              : "All stations are projected to have coverage after these moves.",
+        },
+        summary: uncovered.length === 0
+          ? `Local policy planner improves station coverage from ${initiallyCoveredCount} of ${STATIONS.length} stations to ${coveredCount} of ${STATIONS.length}. Review the alerts, then transmit the moves if they match current field conditions.`
+          : `Local policy planner improves station coverage from ${initiallyCoveredCount} of ${STATIONS.length} stations to ${coveredCount} of ${STATIONS.length}. Review uncovered stations and request mutual aid if needed.`,
+      };
+    }
+
+    function renderUnitGroups() {
+      const groups = [
+        ["Engines", allUnits.filter(unit => unit.startsWith("E"))],
+        ["Ladders", allUnits.filter(unit => unit.startsWith("L") && !TILLERS.has(unit))],
+        ["Tillers", allUnits.filter(unit => TILLERS.has(unit))],
+        ["Rescues", allUnits.filter(unit => RESCUES.has(unit))],
+      ];
+
+      unitGroups.innerHTML = "";
+      groups.forEach(([title, units]) => {
+        const group = document.createElement("div");
+        group.innerHTML = `<h3>${title}</h3>`;
+        const chipWrap = document.createElement("div");
+        chipWrap.className = "chips";
+
+        units.forEach(unit => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `chip${committed.has(unit) ? " committed" : ""}`;
+          button.setAttribute("aria-pressed", committed.has(unit) ? "true" : "false");
+          button.textContent = TANKER_PAIRS[unit] ? `${unit} (+ ${TANKER_PAIRS[unit]})` : unit;
+          button.addEventListener("click", () => toggleUnit(unit));
+          chipWrap.appendChild(button);
+        });
+
+        group.appendChild(chipWrap);
+        unitGroups.appendChild(group);
+      });
+    }
+
+    function renderImpact() {
+      const seasonal = isSeasonal(dateInput.value);
+      const vacantStations = getVacantStations();
+      const availableUnits = getAvailableUnits();
+
+      committedCount.textContent = committed.size;
+      vacantCount.textContent = vacantStations.length;
+      availableCount.textContent = availableUnits.length;
+      coveragePercent.textContent = `${stationCoveragePercent(vacantStations.length)}%`;
+      vacantStatCard.classList.toggle("danger", vacantStations.length > 0);
+      coverageStatCard.classList.toggle("danger", vacantStations.length > 0);
+
+      impactBadges.innerHTML = "";
+      if (seasonal) {
+        impactBadges.insertAdjacentHTML("beforeend", `<span class="badge warning">Seasonal restriction active: E11 and E14 last resort</span>`);
+      }
+
+      if (vacantStations.length === 0) {
+        impactBadges.insertAdjacentHTML("beforeend", `<span class="badge">No vacant stations</span>`);
+      } else {
+        vacantStations.forEach(station => {
+          const badge = document.createElement("span");
+          badge.className = "badge danger";
+          badge.textContent = stationLabel(station);
+          impactBadges.appendChild(badge);
+        });
+      }
+
+      generateSection.classList.toggle("hidden", vacantStations.length === 0);
+      generateButton.disabled = loading;
+      generateButton.textContent = loading
+        ? "Generating backfill plan..."
+        : `Generate backfill plan for ${vacantStations.length} vacant station${vacantStations.length === 1 ? "" : "s"}`;
+    }
+
+    function renderError() {
+      errorBox.classList.toggle("hidden", !error);
+      errorBox.textContent = error || "";
+    }
+
+    function renderResults() {
+      resultsSection.classList.toggle("hidden", !result);
+      if (!result) return;
+
+      mutualAidBox.innerHTML = "";
+      if (result.mutualAid && result.mutualAid.flag) {
+        mutualAidBox.innerHTML = `<div class="mutual-aid">Mutual aid: ${escapeHtml(result.mutualAid.reason || "Request neighboring jurisdiction mutual aid.")}</div>`;
+      }
+
+      const coverage = plannedCoverageStats();
+      summaryBox.innerHTML = result.summary
+        ? `<div class="card"><strong>Station coverage</strong><p>Before moves: ${coverage.beforePercent}% covered (${coverage.beforeCovered} of ${coverage.totalStations} stations covered, ${coverage.beforeVacant} vacant). After these moves: ${coverage.afterPercent}% covered (${coverage.afterCovered} of ${coverage.totalStations} stations covered, ${coverage.afterVacant} vacant).</p></div><div class="card"><strong>Plan summary</strong><p>${escapeHtml(result.summary)}</p></div>`
+        : "";
+
+      alertsBox.innerHTML = "";
+      if (Array.isArray(result.alerts) && result.alerts.length > 0) {
+        const items = result.alerts.map(alert => `<li>${escapeHtml(alert)}</li>`).join("");
+        alertsBox.innerHTML = `<div class="alert-card"><strong>Alerts</strong><ul>${items}</ul></div>`;
+      }
+
+      const assignments = Array.isArray(result.assignments) ? result.assignments : [];
+      if (assignments.length === 0) {
+        assignmentsBox.innerHTML = `<div class="card"><strong>Assignments</strong><p class="reason">No assignments returned.</p></div>`;
+        return;
+      }
+
+      const assignmentHtml = assignments.map(assignment => {
+        const destination = stationById[assignment.toStation];
+        const label = destination ? stationLabel(destination) : `FS${assignment.toStation}`;
+        return `
+          <div class="assignment">
+            <div><span class="success-badge">${escapeHtml(assignment.unit)}</span><strong>to ${escapeHtml(label)}</strong></div>
+            <p class="reason">${escapeHtml(assignment.reason || "")}</p>
+          </div>
+        `;
+      }).join("");
+      assignmentsBox.innerHTML = `<div class="card"><strong>Assignments</strong>${assignmentHtml}</div>`;
+    }
+
+    function render() {
+      renderUnitGroups();
+      renderImpact();
+      renderError();
+      renderResults();
+    }
+
+    function toggleUnit(unit) {
+      clearResultState();
+      if (committed.has(unit)) {
+        committed.delete(unit);
+        if (TANKER_PAIRS[unit]) committed.delete(TANKER_PAIRS[unit]);
+      } else {
+        committed.add(unit);
+        if (TANKER_PAIRS[unit]) committed.add(TANKER_PAIRS[unit]);
+      }
+      render();
+    }
+
+    async function generatePlan() {
+      loading = true;
+      error = null;
+      result = null;
+      render();
+
+      try {
+        result = buildLocalPlan();
+      } catch (requestError) {
+        result = buildLocalPlan();
+      } finally {
+        loading = false;
+        render();
+      }
+    }
+
+    function reset() {
+      committed = new Set();
+      navy = false;
+      loading = false;
+      result = null;
+      error = null;
+      dateInput.value = todayString();
+      navyToggle.checked = false;
+      render();
+    }
+
+    dateInput.value = todayString();
+    navyToggle.addEventListener("change", event => {
+      navy = event.target.checked;
+      clearResultState();
+      render();
+    });
+    dateInput.addEventListener("change", () => {
+      clearResultState();
+      render();
+    });
+    resetButton.addEventListener("click", reset);
+    generateButton.addEventListener("click", generatePlan);
+    render();
+  </script>
+</body>
+</html>
