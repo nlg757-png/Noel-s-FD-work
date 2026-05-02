@@ -513,6 +513,7 @@
       "Station Boundary Proximity Rule: After policy-compliant units are identified, prioritize units from listed boundary stations before farther stations unless another stronger operational rule applies. Treat FS10 and FS22 as boundary stations only because of highway quick access. Do not use FS14 because Station 14 does not exist.",
       "Rescue Unit Alone / No Water Coverage Warning: If R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.",
       "Rescue Alone / No Water Coverage Backfill Alert: After every selected or recommended backfill move, check whether the move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If so, display an EMS-only/no-water alert and recommend an eligible Engine backfill using the existing eligibility, boundary, battalion, Kempsville, and coverage-balance logic.",
+      "Ladder 1 / Ladder 8 No-Water Coverage Protection Rule: Do not recommend E1 or E8 for backfill when moving that engine would leave L1 and L8 by themselves as the only remaining practical area coverage. L1 is a tiller and does not provide water/fire suppression coverage. Choose another eligible engine when available.",
     ];
 
     const STATION_BOUNDARIES = {
@@ -880,6 +881,26 @@
       return sourceStationRisk(unit, remainingUnits) < 100;
     }
 
+    function stationHasAvailableEngine(stationId, remainingUnits, movingUnit = null) {
+      const station = stationById[stationId];
+      if (!station) return false;
+      return station.apparatus.some(unit => {
+        if (unit === movingUnit) return false;
+        if (!isEngine(unit)) return false;
+        if (committed.has(unit)) return false;
+        return remainingUnits.has(unit);
+      });
+    }
+
+    function leavesL1L8NoWaterArea(unit, remainingUnits) {
+      if (unit !== "E1" && unit !== "E8") return false;
+      const l1Available = unitPresentAtHome("L1");
+      const l8Available = unitPresentAtHome("L8");
+      const e1AvailableAfterMove = stationHasAvailableEngine("01", remainingUnits, unit);
+      const e8AvailableAfterMove = stationHasAvailableEngine("08", remainingUnits, unit);
+      return l1Available && l8Available && !e1AvailableAfterMove && !e8AvailableAfterMove;
+    }
+
     function mapProximityRank(toStationId, fromStationId) {
       const preferred = MAP_PROXIMITY[toStationId];
       if (preferred && preferred.includes(fromStationId)) return preferred.indexOf(fromStationId);
@@ -1231,6 +1252,10 @@ Required JSON shape:
         alerts.push("Ladder 16 was deprioritized because Engine 16 and Ladder 16 are both available at Station 16. Engine 16 should be used first for emergency backfill unless a ladder is specifically required.");
       }
 
+      if (leavesL1L8NoWaterArea("E1", remainingUnits) || leavesL1L8NoWaterArea("E8", remainingUnits)) {
+        alerts.push("Engine 1 and/or Engine 8 were not recommended because moving them would leave Ladder 1 and Ladder 8 by themselves. Ladder 1 is a tiller and does not provide water/fire suppression coverage. Another eligible engine should be selected to preserve water coverage.");
+      }
+
       function assign(unit, station, reason) {
         if (!unit || !station || !remainingUnits.has(unit)) return false;
         assignments.push({ unit, toStation: station.id, reason: `${reason} ${assignmentNotes(unit, station)}` });
@@ -1256,6 +1281,7 @@ Required JSON shape:
             if (isBlockedByKempsvilleRule(unit, station.id, remainingUnits)) return false;
             if (sourceEngineShouldGoBeforeLadder(unit, station.id, remainingUnits)) return false;
             if (station.id === "13" && unit === "E1" && otherEligibleCandidateExists("E1", station.id, remainingUnits, predicate)) return false;
+            if (leavesL1L8NoWaterArea(unit, remainingUnits)) return false;
             return predicate(unit) && canMoveFromSource(unit, remainingUnits);
           }),
           station.id,
