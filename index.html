@@ -511,6 +511,8 @@
       "Station 1 to Station 13 Distance Safeguard: FS13 is the furthest backfill option for E1. Do not assign E1 to FS13 when another eligible backfill candidate exists. Use E1 for a more logical station instead.",
       "Engine Backfill Priority by Battalion: After mandatory eligibility, coverage protection, battalion proximity, Kempsville corridor, seasonal, and other policy rules identify valid Engine candidates, use battalion-specific Engine priority as a ranking layer only. Battalion 1 remains location-based with no fixed priority. Battalion 2 priority is E22, E2, E1, with E1 favored for Battalion 1-related coverage and E22 favored for non-Battalion 1 coverage. Battalion 3 prioritizes E16. Battalion 4 prioritizes E21. Battalion 5 prioritizes E7 before E10.",
       "Station Boundary Proximity Rule: After policy-compliant units are identified, prioritize units from listed boundary stations before farther stations unless another stronger operational rule applies. Treat FS10 and FS22 as boundary stations only because of highway quick access. Do not use FS14 because Station 14 does not exist.",
+      "Rescue Unit Alone / No Water Coverage Warning: If R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.",
+      "Rescue Alone / No Water Coverage Backfill Alert: After every selected or recommended backfill move, check whether the move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If so, display an EMS-only/no-water alert and recommend an eligible Engine backfill using the existing eligibility, boundary, battalion, Kempsville, and coverage-balance logic.",
     ];
 
     const STATION_BOUNDARIES = {
@@ -798,6 +800,37 @@
 
     function countsAsHomeCoverage(unit) {
       return !TANKERS.has(unit);
+    }
+
+    function unitPresentAtHome(unit, movedUnits = new Set()) {
+      return !committed.has(unit) && !movedUnits.has(unit);
+    }
+
+    function rescueAloneNoWaterWarnings(assignments = []) {
+      const movedUnits = new Set((Array.isArray(assignments) ? assignments : []).map(assignment => assignment.unit));
+      const warnings = [];
+
+      if (unitPresentAtHome("R1", movedUnits) && !unitPresentAtHome("E3", movedUnits)) {
+        warnings.push({
+          station: stationById["03"],
+          rescue: "R1",
+          missing: "Engine 3",
+          missingVerb: "is",
+          message: "ATTENTION: Fire Station 3 has EMS coverage only. Rescue 1 is currently alone at the station because Engine 3 is no longer available at Fire Station 3. There is no water/fire suppression coverage. Recommend assigning an engine to Fire Station 3 for emergency backfill.",
+        });
+      }
+
+      if (unitPresentAtHome("R2", movedUnits) && !unitPresentAtHome("E7", movedUnits) && !unitPresentAtHome("L7", movedUnits)) {
+        warnings.push({
+          station: stationById["07"],
+          rescue: "R2",
+          missing: "Engine 7 and Ladder 7",
+          missingVerb: "are",
+          message: "ATTENTION: Fire Station 7 has EMS coverage only. Rescue 2 is currently alone at the station because Engine 7 and Ladder 7 are no longer available at Fire Station 7. There is no water/fire suppression coverage. Recommend assigning an engine to Fire Station 7 for emergency backfill.",
+        });
+      }
+
+      return warnings;
     }
 
     function getProjectedVacantStations(assignments) {
@@ -1157,6 +1190,8 @@ Assignment instructions:
 - If L10 is committed and L2 is available, move L2 into the Kempsville corridor only if there is no ladder already located at FS10 or FS07. If L7 is still in quarters at FS07, or L10 is still in quarters at FS10, that satisfies the corridor ladder requirement and the next FS10/FS09/FS07 backfill move should be an Engine when eligible.
 - If E16 and L16 are both available at FS16, prioritize E16 before L16 for emergency backfill. Deprioritize L16 unless E16 is unavailable, ineligible, already committed, already assigned, or a ladder is specifically required.
 - Do not assign E1 to FS13 when another eligible backfill candidate exists. FS13 is E1's furthest option; keep E1 for a more logical station.
+- Rescue Unit Alone / No Water Coverage Warning: if R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. Do not use a Rescue as the solution. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.
+- Rescue Alone / No Water Coverage Backfill Alert: after every selected or recommended move, check whether that move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If yes, display the EMS-only alert and recommend an eligible Engine to that station using existing emergency backfill logic. Do not recommend a Rescue as the solution.
 - If a station cannot be covered, explain why in alerts.
 - If more than one station will remain empty after all available units are assigned, set mutualAid.flag to true and explain that neighboring jurisdiction mutual aid should be requested.
 - Use station IDs in toStation, such as "11", not "FS11".
@@ -1227,6 +1262,27 @@ Required JSON shape:
           remainingUnits
         )[0];
       }
+
+      function handleRescueAloneNoWaterRecommendations() {
+        let madeAssignment = false;
+
+        rescueAloneNoWaterWarnings(assignments).forEach(warning => {
+          alerts.push(warning.message);
+          if (!warning.station || coveredStations.has(warning.station.id)) return;
+
+          const engine = pick(warning.station, isEngine);
+          if (engine) {
+            assign(engine, warning.station, `${stationLabel(warning.station)} has EMS coverage only with ${warning.rescue} at the station. ${warning.missing} ${warning.missingVerb || "is"} not present, so an engine was recommended to restore water/fire suppression coverage.`);
+            madeAssignment = true;
+          } else {
+            alerts.push(`${stationLabel(warning.station)} needs an engine for water/fire suppression coverage, but no eligible engine was available under the current rules.`);
+          }
+        });
+
+        return madeAssignment;
+      }
+
+      handleRescueAloneNoWaterRecommendations();
 
       const station11 = vacantStations.find(station => station.id === "11");
       if (station11) {
@@ -1348,6 +1404,10 @@ Required JSON shape:
         }
       });
 
+      for (let safetyCheck = 0; safetyCheck < 3; safetyCheck += 1) {
+        if (!handleRescueAloneNoWaterRecommendations()) break;
+      }
+
       assignments.forEach(first => {
         const firstUnitLadderOnly = isAnyLadder(first.unit);
         const firstUnitPumpLess = isPumpLess(first.unit);
@@ -1430,6 +1490,8 @@ Required JSON shape:
       const seasonal = isSeasonal(dateInput.value);
       const vacantStations = getVacantStations();
       const availableUnits = getAvailableUnits();
+      const rescueWarnings = rescueAloneNoWaterWarnings();
+      const needsPlan = vacantStations.length > 0 || rescueWarnings.length > 0;
 
       committedCount.textContent = committed.size;
       vacantCount.textContent = vacantStations.length;
@@ -1443,9 +1505,16 @@ Required JSON shape:
         impactBadges.insertAdjacentHTML("beforeend", `<span class="badge warning">Seasonal restriction active: E11 and E14 last resort</span>`);
       }
 
-      if (vacantStations.length === 0) {
+      rescueWarnings.forEach(warning => {
+        const badge = document.createElement("span");
+        badge.className = "badge danger";
+        badge.textContent = `${stationLabel(warning.station)} EMS only: recommend engine backfill`;
+        impactBadges.appendChild(badge);
+      });
+
+      if (vacantStations.length === 0 && rescueWarnings.length === 0) {
         impactBadges.insertAdjacentHTML("beforeend", `<span class="badge">No vacant stations</span>`);
-      } else {
+      } else if (vacantStations.length > 0) {
         vacantStations.forEach(station => {
           const badge = document.createElement("span");
           badge.className = "badge danger";
@@ -1454,11 +1523,13 @@ Required JSON shape:
         });
       }
 
-      generateSection.classList.toggle("hidden", vacantStations.length === 0);
+      generateSection.classList.toggle("hidden", !needsPlan);
       generateButton.disabled = loading;
       generateButton.textContent = loading
         ? "Generating backfill plan..."
-        : `Generate backfill plan for ${vacantStations.length} vacant station${vacantStations.length === 1 ? "" : "s"}`;
+        : rescueWarnings.length > 0 && vacantStations.length === 0
+          ? `Generate engine backfill recommendation for ${rescueWarnings.length} EMS-only station${rescueWarnings.length === 1 ? "" : "s"}`
+          : `Generate backfill plan for ${vacantStations.length} vacant station${vacantStations.length === 1 ? "" : "s"}`;
     }
 
     function renderError() {
