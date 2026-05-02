@@ -463,12 +463,29 @@
       "Rescue station engine protection: E3 cannot be used as a backfill piece because it is housed with R1. R1 cannot backfill and has no water. R2 should not be left without E7 when another equally practical backfill unit is available.",
       "Backfill apparatus eligibility: Only Engines and regular Ladders can backfill a vacant station. Tillers, Rescues, and Tankers cannot be assigned as backfill pieces.",
       "Tiller restriction: L1, L7, and L11 may remain in quarters as their station's apparatus, but they are never to be moved as backfill pieces.",
+      "Battalion Proximity and Coverage Balance Rule: After mandatory rules identify eligible candidates, rank candidates by the vacancy battalion's proximity order and battalion coverage balance. Same-battalion candidates rank highest unless they create a coverage issue. Penalize candidates from non-listed battalions, candidates that are the last available unit in their battalion, or candidates that would leave their battalion poorly covered. This rule only ranks eligible options and should be used as a decision-support layer.",
     ];
 
     const MAP_PROXIMITY = {
       "01": ["15", "04", "20"],
       "02": ["07", "22", "04", "20"],
       "05": ["16", "18", "21", "17", "06"],
+    };
+
+    const BATTALION_BY_STATION = {
+      "11": "1", "12": "1", "08": "1", "15": "1",
+      "02": "2", "04": "2", "22": "2", "01": "2",
+      "03": "3", "16": "3", "18": "3", "19": "3",
+      "05": "4", "06": "4", "17": "4", "21": "4",
+      "07": "5", "09": "5", "10": "5",
+    };
+
+    const BATTALION_PROXIMITY = {
+      "1": ["1", "4", "2", "3"],
+      "2": ["2", "5", "1"],
+      "3": ["3", "4", "5", "1"],
+      "4": ["4", "1", "3", "5"],
+      "5": ["5", "3", "2", "4"],
     };
 
     const allUnits = STATIONS.flatMap(station => station.apparatus);
@@ -653,6 +670,64 @@
       return 100;
     }
 
+    function battalionForStation(stationId) {
+      return BATTALION_BY_STATION[stationId] || null;
+    }
+
+    function battalionProximityBaseScore(vacancyBattalion, candidateBattalion) {
+      if (!vacancyBattalion || !candidateBattalion) return 50;
+      const order = BATTALION_PROXIMITY[vacancyBattalion] || [];
+      const index = order.indexOf(candidateBattalion);
+      if (index === 0) return 0;
+      if (index > 0) return index * 10;
+      return 50;
+    }
+
+    function battalionAvailableUnits(candidateBattalion, remainingUnits) {
+      return [...remainingUnits].filter(unit => {
+        const home = unitHomeStation(unit);
+        return home && battalionForStation(home.id) === candidateBattalion && isBackfillEligible(unit) && canMoveFromSource(unit, remainingUnits);
+      });
+    }
+
+    function battalionCoveredStations(candidateBattalion, movingUnit) {
+      return STATIONS.filter(station => battalionForStation(station.id) === candidateBattalion).filter(station => {
+        if (station.navy && navy) return true;
+        return station.apparatus.some(unit => {
+          if (unit === movingUnit) return false;
+          if (committed.has(unit)) return false;
+          return countsAsHomeCoverage(unit);
+        });
+      }).length;
+    }
+
+    function battalionScore(unit, toStationId, remainingUnits) {
+      const home = unitHomeStation(unit);
+      const vacancyBattalion = battalionForStation(toStationId);
+      const candidateBattalion = home ? battalionForStation(home.id) : null;
+      let score = battalionProximityBaseScore(vacancyBattalion, candidateBattalion);
+
+      const availableInBattalion = battalionAvailableUnits(candidateBattalion, remainingUnits);
+      if (availableInBattalion.length <= 1) score += 25;
+
+      const battalionStationCount = STATIONS.filter(station => battalionForStation(station.id) === candidateBattalion).length;
+      const coveredAfterMove = battalionCoveredStations(candidateBattalion, unit);
+      if (battalionStationCount > 0 && coveredAfterMove <= Math.floor(battalionStationCount / 2)) score += 25;
+
+      return score;
+    }
+
+    function battalionSelectionNote(unit, station) {
+      const home = unitHomeStation(unit);
+      const vacancyBattalion = battalionForStation(station.id);
+      const candidateBattalion = home ? battalionForStation(home.id) : null;
+      if (!vacancyBattalion || !candidateBattalion) return "Battalion balance: selected as the best remaining balanced option.";
+      if (vacancyBattalion === candidateBattalion) return `Battalion balance: same-battalion move from Battalion ${candidateBattalion}.`;
+      const order = BATTALION_PROXIMITY[vacancyBattalion] || [];
+      if (order.includes(candidateBattalion)) return `Battalion balance: bordering Battalion ${candidateBattalion} is in the preferred order for Battalion ${vacancyBattalion}.`;
+      return `Battalion balance: Battalion ${candidateBattalion} was the best remaining balanced option for Battalion ${vacancyBattalion}.`;
+    }
+
     function ladderBackfillOrder(unit) {
       if (unit === "L2") return 0;
       if (unit === "L8") return 1;
@@ -683,6 +758,8 @@
         const sourceRiskB = sourceStationRisk(b, remainingUnits);
         const proximityA = homeA ? mapProximityRank(toStationId, homeA.id) : 100;
         const proximityB = homeB ? mapProximityRank(toStationId, homeB.id) : 100;
+        const battalionA = battalionScore(a, toStationId, remainingUnits);
+        const battalionB = battalionScore(b, toStationId, remainingUnits);
         const adjacentA = homeA && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeA.id) ? 0 : 1;
         const adjacentB = homeB && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeB.id) ? 0 : 1;
         const seasonalA = seasonal && (a === "E11" || a === "E14") ? 1 : 0;
@@ -694,6 +771,7 @@
           || proximityA - proximityB
           || adjacentA - adjacentB
           || sourceRiskA - sourceRiskB
+          || battalionA - battalionB
           || ladderA - ladderB
           || a.localeCompare(b, undefined, { numeric: true });
       });
@@ -783,6 +861,7 @@ Assignment instructions:
 - When a station with both an Engine and a regular Ladder is fully vacant, fill the ladder need first. Use L2 before E2 or any other engine if L2 is available.
 - FS02 and FS22 are exceptions because of northwest corridor ladder coverage. Backfill FS02 or FS22 with an Engine first unless E2, L2, E22, and L22 are all committed. Only then consider a Ladder at FS02 or FS22.
 - Outside the L2/L8 ladder-distribution exception, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.
+- Battalion Proximity and Coverage Balance Rule: after eligible candidates are identified, rank by battalion proximity and coverage balance. Penalize non-listed battalions, the last available unit in a battalion, and moves that leave a battalion poorly covered. Use this only as a ranking layer among eligible options.
 - If a station cannot be covered, explain why in alerts.
 - If more than one station will remain empty after all available units are assigned, set mutualAid.flag to true and explain that neighboring jurisdiction mutual aid should be requested.
 - Use station IDs in toStation, such as "11", not "FS11".
@@ -819,7 +898,7 @@ Required JSON shape:
 
       function assign(unit, station, reason) {
         if (!unit || !station || !remainingUnits.has(unit)) return false;
-        assignments.push({ unit, toStation: station.id, reason });
+        assignments.push({ unit, toStation: station.id, reason: `${reason} ${battalionSelectionNote(unit, station)}` });
         remainingUnits.delete(unit);
         if (unit === "E11") remainingUnits.delete("E14");
         if (unit === "E14") remainingUnits.delete("E11");
