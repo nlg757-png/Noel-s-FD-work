@@ -488,6 +488,7 @@
       "Kempsville Corridor Ladder Coverage Rule: If a ladder is already located at Station 10, Station 9, or Station 7, the Kempsville corridor has ladder coverage. For additional backfill needs in that corridor, prioritize an eligible Engine before recommending another Ladder unless another mandatory rule requires a Ladder.",
       "Kempsville Corridor L2 Placement Rule: If L10 is committed and L2 is available, move L2 into the Kempsville corridor first as the single ladder move for FS10, FS09, and FS07, then assign engines for the remaining backfill needs.",
       "Engine 16 / Ladder 16 Station 16 Preference: If E16 and L16 are both available at Station 16, prefer E16 before recommending L16 for emergency backfill. Deprioritize L16 while E16 remains available and eligible, unless a ladder is specifically required by another operational rule.",
+      "Station 1 to Station 13 Distance Safeguard: FS13 is the furthest backfill option for E1. Do not assign E1 to FS13 when another eligible backfill candidate exists. Use E1 for a more logical station instead.",
     ];
 
     const MAP_PROXIMITY = {
@@ -495,6 +496,7 @@
       "02": ["07", "22", "04", "20"],
       "05": ["16", "18", "21", "17", "06"],
       "10": ["22", "07", "09", "18", "19"],
+      "13": ["17", "06", "21", "18", "16"],
       "19": ["21", "18", "10", "09"],
     };
 
@@ -679,6 +681,17 @@
       if (unit !== "L16") return 0;
       if (!remainingUnits.has("L16") || committed.has("L16")) return 0;
       return engine16AvailableAndEligible(remainingUnits, toStationId) ? 25 : 0;
+    }
+
+    function otherEligibleCandidateExists(unitToSkip, toStationId, remainingUnits, predicate) {
+      return [...remainingUnits].some(candidate => {
+        if (candidate === unitToSkip) return false;
+        if (!predicate(candidate)) return false;
+        if (isBlockedByKempsvilleRule(candidate, toStationId, remainingUnits)) return false;
+        if (sourceEngineShouldGoBeforeLadder(candidate, toStationId, remainingUnits)) return false;
+        if (!canMoveFromSource(candidate, remainingUnits)) return false;
+        return true;
+      });
     }
 
     function sourceEngineShouldGoBeforeLadder(unit, toStationId, remainingUnits) {
@@ -986,6 +999,7 @@ Assignment instructions:
 - If a ladder is already located at FS10, FS09, or FS07, the Kempsville corridor has ladder coverage. For FS10/FS09/FS07 backfill needs, prioritize an eligible Engine before moving another Ladder into that corridor unless another mandatory rule requires the Ladder.
 - If L10 is committed and L2 is available, move L2 into the Kempsville corridor first as the single ladder move for FS10, FS09, and FS07, then assign engines for the remaining backfill needs.
 - If E16 and L16 are both available at FS16, prioritize E16 before L16 for emergency backfill. Deprioritize L16 unless E16 is unavailable, ineligible, already committed, already assigned, or a ladder is specifically required.
+- Do not assign E1 to FS13 when another eligible backfill candidate exists. FS13 is E1's furthest option; keep E1 for a more logical station.
 - If a station cannot be covered, explain why in alerts.
 - If more than one station will remain empty after all available units are assigned, set mutualAid.flag to true and explain that neighboring jurisdiction mutual aid should be requested.
 - Use station IDs in toStation, such as "11", not "FS11".
@@ -1009,6 +1023,7 @@ Required JSON shape:
       const coveredStations = new Set();
       const assignments = [];
       const alerts = [];
+      let kempsvilleBackfillLadderPositioned = false;
 
       if (!navy && allUnits.includes("E15")) {
         alerts.push("E15 is excluded because Navy staffing at FS15 is not confirmed.");
@@ -1030,8 +1045,15 @@ Required JSON shape:
         remainingUnits.delete(unit);
         if (unit === "E11") remainingUnits.delete("E14");
         if (unit === "E14") remainingUnits.delete("E11");
+        if (isRegularLadder(unit) && isKempsvilleCorridorStation(station.id)) {
+          kempsvilleBackfillLadderPositioned = true;
+        }
         coveredStations.add(station.id);
         return true;
+      }
+
+      function corridorHasLadderForCurrentPlan() {
+        return kempsvilleBackfillLadderPositioned || kempsvilleCorridorHasLadder();
       }
 
       function pick(station, predicate) {
@@ -1041,6 +1063,7 @@ Required JSON shape:
             if (station11EngineAlreadyAssigned && (unit === "E11" || unit === "E14")) return false;
             if (isBlockedByKempsvilleRule(unit, station.id, remainingUnits)) return false;
             if (sourceEngineShouldGoBeforeLadder(unit, station.id, remainingUnits)) return false;
+            if (station.id === "13" && unit === "E1" && otherEligibleCandidateExists("E1", station.id, remainingUnits, predicate)) return false;
             return predicate(unit) && canMoveFromSource(unit, remainingUnits);
           }),
           station.id,
@@ -1082,7 +1105,7 @@ Required JSON shape:
 
         const corridor = vacantStations.find(station => (station.id === "09" || station.id === "10") && !coveredStations.has(station.id));
         if (corridor) {
-          const engine = kempsvilleCorridorHasLadder()
+          const engine = corridorHasLadderForCurrentPlan()
             ? pick(corridor, isEngine)
             : null;
           if (engine) {
@@ -1136,7 +1159,7 @@ Required JSON shape:
 
         unit = pick(station, unitId => isEngine(unitId) && (!seasonal || (unitId !== "E11" && unitId !== "E14")));
         if (unit) {
-          const reason = isKempsvilleCorridorStation(station.id) && kempsvilleCorridorHasLadder()
+          const reason = isKempsvilleCorridorStation(station.id) && corridorHasLadderForCurrentPlan()
             ? `${stationLabel(station)} is vacant. The Kempsville corridor already has ladder coverage from a ladder positioned at Station 10, Station 9, or Station 7. An engine was prioritized for backfill to avoid unnecessarily moving an additional ladder into the corridor.`
             : `${stationLabel(station)} is vacant. Assign an engine to restore pump coverage.`;
           assign(unit, station, reason);
