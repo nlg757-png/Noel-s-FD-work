@@ -270,6 +270,26 @@
       margin-bottom: 12px;
     }
 
+    .alert-toggle {
+      width: 100%;
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 0;
+      background: transparent;
+      color: #5f3b00;
+      padding: 0;
+      font-weight: 900;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .alert-list {
+      margin: 10px 0 0;
+    }
+
     .mutual-aid {
       border: 1px solid var(--danger);
       background: var(--danger);
@@ -464,12 +484,18 @@
       "Backfill apparatus eligibility: Only Engines and regular Ladders can backfill a vacant station. Tillers, Rescues, and Tankers cannot be assigned as backfill pieces.",
       "Tiller restriction: L1, L7, and L11 may remain in quarters as their station's apparatus, but they are never to be moved as backfill pieces.",
       "Battalion Proximity and Coverage Balance Rule: After mandatory rules identify eligible candidates, rank candidates by the vacancy battalion's proximity order and battalion coverage balance. Same-battalion candidates rank highest unless they create a coverage issue. Penalize candidates from non-listed battalions, candidates that are the last available unit in their battalion, or candidates that would leave their battalion poorly covered. This rule only ranks eligible options and should be used as a decision-support layer.",
+      "Engine 10 / Ladder 10 Company 9 Restriction: For emergency backfills, if E10 is committed, assigned, unavailable, or otherwise out on a call, L10 must remain at Company 10 and must not be recommended to backfill Company 9.",
+      "Kempsville Corridor Ladder Coverage Rule: If a ladder is already located at Station 10, Station 9, or Station 7, the Kempsville corridor has ladder coverage. For additional backfill needs in that corridor, prioritize an eligible Engine before recommending another Ladder unless another mandatory rule requires a Ladder.",
+      "Kempsville Corridor L2 Placement Rule: If L10 is committed and L2 is available, move L2 into the Kempsville corridor first as the single ladder move for FS10, FS09, and FS07, then assign engines for the remaining backfill needs.",
+      "Engine 16 / Ladder 16 Station 16 Preference: If E16 and L16 are both available at Station 16, prefer E16 before recommending L16 for emergency backfill. Deprioritize L16 while E16 remains available and eligible, unless a ladder is specifically required by another operational rule.",
     ];
 
     const MAP_PROXIMITY = {
       "01": ["15", "04", "20"],
       "02": ["07", "22", "04", "20"],
       "05": ["16", "18", "21", "17", "06"],
+      "10": ["22", "07", "09", "18", "19"],
+      "19": ["21", "18", "10", "09"],
     };
 
     const BATTALION_BY_STATION = {
@@ -598,11 +624,101 @@
     function shouldFillLadderNeedFirst(station) {
       if (!stationHasRegularLadder(station)) return false;
       if ((station.id === "02" || station.id === "22") && !northwestLadderCorridorFullyOut()) return false;
+      if (isKempsvilleCorridorStation(station.id) && eligibleEngineAvailableForStation(station.id, getAvailableUnitsAsSet())) return false;
       return true;
+    }
+
+    function getAvailableUnitsAsSet() {
+      return new Set(allUnits.filter(unit => !committed.has(unit) && (navy || unit !== "E15") && isBackfillEligible(unit)));
     }
 
     function isPumpLess(unit) {
       return TILLERS.has(unit) || RESCUES.has(unit);
+    }
+
+    function isKempsvilleCorridorStation(stationId) {
+      return stationId === "10" || stationId === "09" || stationId === "07";
+    }
+
+    function ladderCurrentlyAtStation(stationId, movedUnits = new Set()) {
+      const station = stationById[stationId];
+      if (!station) return false;
+      return station.apparatus.some(unit => {
+        if (!isAnyLadder(unit)) return false;
+        if (committed.has(unit)) return false;
+        if (movedUnits.has(unit)) return false;
+        return true;
+      });
+    }
+
+    function kempsvilleCorridorHasLadder(movedUnits = new Set()) {
+      return ["10", "09", "07"].some(stationId => ladderCurrentlyAtStation(stationId, movedUnits));
+    }
+
+    function isBlockedByKempsvilleRule(unit, toStationId, remainingUnits) {
+      if (toStationId === "09" && unit === "L10" && committed.has("E10")) return true;
+      if (!isKempsvilleCorridorStation(toStationId) || !isRegularLadder(unit)) return false;
+
+      return [...remainingUnits].some(candidate => {
+        if (!isEngine(candidate)) return false;
+        if (!canMoveFromSource(candidate, remainingUnits)) return false;
+        return true;
+      });
+    }
+
+    function engine16AvailableAndEligible(remainingUnits, toStationId) {
+      const targetStation = stationById[toStationId];
+      if (!remainingUnits.has("E16")) return false;
+      if (committed.has("E16")) return false;
+      if (!isBackfillEligible("E16")) return false;
+      if (!canMoveFromSource("E16", remainingUnits)) return false;
+      return !targetStation || !isBlockedByKempsvilleRule("E16", toStationId, remainingUnits);
+    }
+
+    function station16LadderPenalty(unit, toStationId, remainingUnits) {
+      if (unit !== "L16") return 0;
+      if (!remainingUnits.has("L16") || committed.has("L16")) return 0;
+      return engine16AvailableAndEligible(remainingUnits, toStationId) ? 25 : 0;
+    }
+
+    function sourceEngineShouldGoBeforeLadder(unit, toStationId, remainingUnits) {
+      if (!isRegularLadder(unit)) return false;
+      if (unit === "L2" || unit === "L8") return false;
+
+      const home = unitHomeStation(unit);
+      if (!home) return false;
+
+      return home.apparatus.some(homeUnit => {
+        if (!isEngine(homeUnit)) return false;
+        if (!remainingUnits.has(homeUnit)) return false;
+        if (committed.has(homeUnit)) return false;
+        if (!isBackfillEligible(homeUnit)) return false;
+        if (!canMoveFromSource(homeUnit, remainingUnits)) return false;
+        if (isBlockedByKempsvilleRule(homeUnit, toStationId, remainingUnits)) return false;
+        return true;
+      });
+    }
+
+    function eligibleEngineAvailableForStation(stationId, remainingUnits) {
+      return [...remainingUnits].some(unit => {
+        if (!isEngine(unit)) return false;
+        if (!canMoveFromSource(unit, remainingUnits)) return false;
+        if (isBlockedByKempsvilleRule(unit, stationId, remainingUnits)) return false;
+        return true;
+      });
+    }
+
+    function kempsvillePriorityLadderTarget(vacantStations, remainingUnits) {
+      if (!committed.has("L10")) return null;
+      if (!remainingL2CanMove(remainingUnits)) return null;
+
+      return vacantStations.find(station => station.id === "10")
+        || vacantStations.find(station => station.id === "09")
+        || vacantStations.find(station => station.id === "07");
+    }
+
+    function remainingL2CanMove(remainingUnits) {
+      return remainingUnits.has("L2") && canMoveFromSource("L2", remainingUnits);
     }
 
     function isBackfillEligible(unit) {
@@ -760,6 +876,8 @@
         const proximityB = homeB ? mapProximityRank(toStationId, homeB.id) : 100;
         const battalionA = battalionScore(a, toStationId, remainingUnits);
         const battalionB = battalionScore(b, toStationId, remainingUnits);
+        const station16A = station16LadderPenalty(a, toStationId, remainingUnits);
+        const station16B = station16LadderPenalty(b, toStationId, remainingUnits);
         const adjacentA = homeA && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeA.id) ? 0 : 1;
         const adjacentB = homeB && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeB.id) ? 0 : 1;
         const seasonalA = seasonal && (a === "E11" || a === "E14") ? 1 : 0;
@@ -772,6 +890,7 @@
           || adjacentA - adjacentB
           || sourceRiskA - sourceRiskB
           || battalionA - battalionB
+          || station16A - station16B
           || ladderA - ladderB
           || a.localeCompare(b, undefined, { numeric: true });
       });
@@ -855,6 +974,7 @@ Assignment instructions:
 - Only one Station 11 engine may be used for backfill. Do not assign both E11 and E14 to backfill moves.
 - Use the map to prefer the closest practical source company after hard source-station protection. For FS02, FS07 is the closest practical source, so E7 should be preferred when available.
 - For FS05, prefer E16 when available before reaching farther north/west companies such as E2.
+- For FS10, prefer E22 when available for engine backfill. For FS19, prefer E21 when available for engine backfill.
 - R1 and R2 should not be left at their home station without an Engine if an equally close/practical option exists, but this should not block a closest practical map-based move when that station still has staffed apparatus in quarters.
 - Never assign L1, L7, L11, R1, R2, T5, T6, or T13 as backfill. Mention Rescue centering as a note only; do not use a Rescue as the backfill piece.
 - If the vacant station normally houses a regular Ladder, prefer a regular Ladder backfill before an Engine when possible. Use L2 first, then L8 if L2 is unavailable or already assigned. Tiller-only stations do not trigger this preference.
@@ -862,6 +982,10 @@ Assignment instructions:
 - FS02 and FS22 are exceptions because of northwest corridor ladder coverage. Backfill FS02 or FS22 with an Engine first unless E2, L2, E22, and L22 are all committed. Only then consider a Ladder at FS02 or FS22.
 - Outside the L2/L8 ladder-distribution exception, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.
 - Battalion Proximity and Coverage Balance Rule: after eligible candidates are identified, rank by battalion proximity and coverage balance. Penalize non-listed battalions, the last available unit in a battalion, and moves that leave a battalion poorly covered. Use this only as a ranking layer among eligible options.
+- If E10 is committed, do not recommend L10 to backfill FS09. Keep L10 at FS10 for Kempsville corridor coverage.
+- If a ladder is already located at FS10, FS09, or FS07, the Kempsville corridor has ladder coverage. For FS10/FS09/FS07 backfill needs, prioritize an eligible Engine before moving another Ladder into that corridor unless another mandatory rule requires the Ladder.
+- If L10 is committed and L2 is available, move L2 into the Kempsville corridor first as the single ladder move for FS10, FS09, and FS07, then assign engines for the remaining backfill needs.
+- If E16 and L16 are both available at FS16, prioritize E16 before L16 for emergency backfill. Deprioritize L16 unless E16 is unavailable, ineligible, already committed, already assigned, or a ladder is specifically required.
 - If a station cannot be covered, explain why in alerts.
 - If more than one station will remain empty after all available units are assigned, set mutualAid.flag to true and explain that neighboring jurisdiction mutual aid should be requested.
 - Use station IDs in toStation, such as "11", not "FS11".
@@ -896,6 +1020,10 @@ Required JSON shape:
         alerts.push("Seasonal restriction is active. E11 and E14 are held as last-resort backfill units.");
       }
 
+      if (remainingUnits.has("E16") && remainingUnits.has("L16") && engine16AvailableAndEligible(remainingUnits, "16")) {
+        alerts.push("Ladder 16 was deprioritized because Engine 16 and Ladder 16 are both available at Station 16. Engine 16 should be used first for emergency backfill unless a ladder is specifically required.");
+      }
+
       function assign(unit, station, reason) {
         if (!unit || !station || !remainingUnits.has(unit)) return false;
         assignments.push({ unit, toStation: station.id, reason: `${reason} ${battalionSelectionNote(unit, station)}` });
@@ -911,6 +1039,8 @@ Required JSON shape:
         return sortUnitsForBackfill(
           [...remainingUnits].filter(unit => {
             if (station11EngineAlreadyAssigned && (unit === "E11" || unit === "E14")) return false;
+            if (isBlockedByKempsvilleRule(unit, station.id, remainingUnits)) return false;
+            if (sourceEngineShouldGoBeforeLadder(unit, station.id, remainingUnits)) return false;
             return predicate(unit) && canMoveFromSource(unit, remainingUnits);
           }),
           station.id,
@@ -935,21 +1065,35 @@ Required JSON shape:
 
       if (committed.has("L7") && remainingUnits.has("L10")) {
         const fs09 = vacantStations.find(station => station.id === "09");
-        if (fs09 && !coveredStations.has("09")) {
+        if (fs09 && !coveredStations.has("09") && !committed.has("E10")) {
           assign("L10", fs09, "L7 is committed. Move L10 to FS09 to protect the Kempsville corridor.");
+        } else if (fs09 && committed.has("E10")) {
+          alerts.push("Ladder 10 was not recommended for Company 9 because Engine 10 is committed. Ladder 10 should remain at Company 10 to maintain Kempsville corridor coverage.");
         } else {
           alerts.push("L7 is committed. L7 itself is not a backfill piece; keep L10 available for Kempsville corridor ladder coverage if FS09 is not vacant.");
         }
       }
 
       if (committed.has("L10")) {
+        const priorityTarget = kempsvillePriorityLadderTarget(vacantStations.filter(station => !coveredStations.has(station.id)), remainingUnits);
+        if (priorityTarget) {
+          assign("L2", priorityTarget, "L10 is committed, so L2 was moved into the Kempsville corridor first. Only one ladder is needed for FS09, FS07, and FS10; engines are prioritized for the remaining backfill needs.");
+        }
+
         const corridor = vacantStations.find(station => (station.id === "09" || station.id === "10") && !coveredStations.has(station.id));
         if (corridor) {
-          const ladder = pick(corridor, isRegularLadder);
-          if (ladder) {
-            assign(ladder, corridor, "L10 is committed. Put ladder coverage back into the Kempsville corridor.");
+          const engine = kempsvilleCorridorHasLadder()
+            ? pick(corridor, isEngine)
+            : null;
+          if (engine) {
+            assign(engine, corridor, "The Kempsville corridor already has ladder coverage from a ladder positioned at Station 10, Station 9, or Station 7. An engine was prioritized for backfill to avoid unnecessarily moving an additional ladder into the corridor.");
           } else {
-            alerts.push("L10 is committed and no ladder is available for the Kempsville corridor.");
+            const ladder = pick(corridor, isRegularLadder);
+            if (ladder) {
+              assign(ladder, corridor, "L10 is committed. Put ladder coverage back into the Kempsville corridor.");
+            } else {
+              alerts.push("L10 is committed and no ladder is available for the Kempsville corridor.");
+            }
           }
         }
       }
@@ -961,6 +1105,10 @@ Required JSON shape:
       const remainingRescues = allUnits.filter(unit => RESCUES.has(unit) && !committed.has(unit));
       if (remainingRescues.length === 1) {
         alerts.push(`Only one Rescue remains available (${remainingRescues[0]}). Center Rescue coverage at FS03 or FS07 if operations allow, but do not use it as the backfill piece.`);
+      }
+
+      if (vacantStations.some(station => station.id === "09") && committed.has("E10") && remainingUnits.has("L10")) {
+        alerts.push("Ladder 10 was not recommended for Company 9 because Engine 10 is committed. Ladder 10 should remain at Company 10 to maintain Kempsville corridor coverage.");
       }
 
       vacantStations
@@ -988,7 +1136,10 @@ Required JSON shape:
 
         unit = pick(station, unitId => isEngine(unitId) && (!seasonal || (unitId !== "E11" && unitId !== "E14")));
         if (unit) {
-          assign(unit, station, `${stationLabel(station)} is vacant. Assign an engine to restore pump coverage.`);
+          const reason = isKempsvilleCorridorStation(station.id) && kempsvilleCorridorHasLadder()
+            ? `${stationLabel(station)} is vacant. The Kempsville corridor already has ladder coverage from a ladder positioned at Station 10, Station 9, or Station 7. An engine was prioritized for backfill to avoid unnecessarily moving an additional ladder into the corridor.`
+            : `${stationLabel(station)} is vacant. Assign an engine to restore pump coverage.`;
+          assign(unit, station, reason);
           return;
         }
 
@@ -1152,7 +1303,25 @@ Required JSON shape:
       alertsBox.innerHTML = "";
       if (Array.isArray(result.alerts) && result.alerts.length > 0) {
         const items = result.alerts.map(alert => `<li>${escapeHtml(alert)}</li>`).join("");
-        alertsBox.innerHTML = `<div class="alert-card"><strong>Alerts</strong><ul>${items}</ul></div>`;
+        alertsBox.innerHTML = `
+          <div class="alert-card">
+            <button class="alert-toggle" type="button" id="alerts-toggle" aria-expanded="false">
+              <span>Alerts (${result.alerts.length})</span>
+              <span id="alerts-toggle-label">Show</span>
+            </button>
+            <ul id="alerts-list" class="alert-list hidden">${items}</ul>
+          </div>
+        `;
+
+        const toggle = document.querySelector("#alerts-toggle");
+        const list = document.querySelector("#alerts-list");
+        const label = document.querySelector("#alerts-toggle-label");
+        toggle.addEventListener("click", () => {
+          const expanded = toggle.getAttribute("aria-expanded") === "true";
+          toggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+          list.classList.toggle("hidden", expanded);
+          label.textContent = expanded ? "Show" : "Hide";
+        });
       }
 
       const assignments = Array.isArray(result.assignments) ? result.assignments : [];
