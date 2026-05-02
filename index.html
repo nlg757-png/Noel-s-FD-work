@@ -309,6 +309,26 @@
       margin-top: 8px;
     }
 
+    .assignment-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .assignment-toggle {
+      min-height: 32px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: #334252;
+      padding: 5px 9px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
     .success-badge {
       display: inline-flex;
       align-items: center;
@@ -486,10 +506,42 @@
       "Battalion Proximity and Coverage Balance Rule: After mandatory rules identify eligible candidates, rank candidates by the vacancy battalion's proximity order and battalion coverage balance. Same-battalion candidates rank highest unless they create a coverage issue. Penalize candidates from non-listed battalions, candidates that are the last available unit in their battalion, or candidates that would leave their battalion poorly covered. This rule only ranks eligible options and should be used as a decision-support layer.",
       "Engine 10 / Ladder 10 Company 9 Restriction: For emergency backfills, if E10 is committed, assigned, unavailable, or otherwise out on a call, L10 must remain at Company 10 and must not be recommended to backfill Company 9.",
       "Kempsville Corridor Ladder Coverage Rule: If a ladder is already located at Station 10, Station 9, or Station 7, the Kempsville corridor has ladder coverage. For additional backfill needs in that corridor, prioritize an eligible Engine before recommending another Ladder unless another mandatory rule requires a Ladder.",
-      "Kempsville Corridor L2 Placement Rule: If L10 is committed and L2 is available, move L2 into the Kempsville corridor first as the single ladder move for FS10, FS09, and FS07, then assign engines for the remaining backfill needs.",
+      "Kempsville Corridor L2 Placement Rule: If L10 is committed and L2 is available, move L2 into the Kempsville corridor only when there is no ladder already located at FS10 or FS07. If a ladder is already at FS10 or FS07, that satisfies the corridor ladder need and an Engine should be prioritized for FS10, FS09, or FS07 backfill.",
       "Engine 16 / Ladder 16 Station 16 Preference: If E16 and L16 are both available at Station 16, prefer E16 before recommending L16 for emergency backfill. Deprioritize L16 while E16 remains available and eligible, unless a ladder is specifically required by another operational rule.",
       "Station 1 to Station 13 Distance Safeguard: FS13 is the furthest backfill option for E1. Do not assign E1 to FS13 when another eligible backfill candidate exists. Use E1 for a more logical station instead.",
+      "Engine Backfill Priority by Battalion: After mandatory eligibility, coverage protection, battalion proximity, Kempsville corridor, seasonal, and other policy rules identify valid Engine candidates, use battalion-specific Engine priority as a ranking layer only. Battalion 1 remains location-based with no fixed priority. Battalion 2 priority is E22, E2, E1, with E1 favored for Battalion 1-related coverage and E22 favored for non-Battalion 1 coverage. Battalion 3 prioritizes E16. Battalion 4 prioritizes E21. Battalion 5 prioritizes E7 before E10.",
+      "Station Boundary Proximity Rule: After policy-compliant units are identified, prioritize units from listed boundary stations before farther stations unless another stronger operational rule applies. Treat FS10 and FS22 as boundary stations only because of highway quick access. Do not use FS14 because Station 14 does not exist.",
     ];
+
+    const STATION_BOUNDARIES = {
+      "01": ["15", "08", "04"],
+      "02": ["04", "07", "22"],
+      "03": ["08", "16", "18", "21"],
+      "04": ["01", "02", "22"],
+      "05": ["21", "18", "03", "19"],
+      "06": ["17", "21", "05"],
+      "07": ["22", "02", "20", "16", "09"],
+      "08": ["20", "03", "11", "01"],
+      "09": ["10", "07", "19", "18"],
+      "10": ["09", "19", "22"],
+      "11": ["12", "08", "15"],
+      "12": ["21", "11", "08"],
+      "13": ["06", "05"],
+      "14": [],
+      "15": ["01", "11"],
+      "16": ["07", "09", "18", "03", "20"],
+      "17": ["21", "06"],
+      "18": ["09", "19", "05", "21", "03", "16"],
+      "19": ["10", "09", "18", "05"],
+      "20": ["08", "03", "16", "07"],
+      "21": ["05", "06", "17", "12", "03", "18"],
+      "22": ["04", "02", "07", "10"],
+    };
+
+    const SPECIAL_BOUNDARY_NOTES = {
+      "10-22": "Stations 10 and 22 were treated as boundary stations because of highway quick access / west-side highway access.",
+      "22-10": "Stations 22 and 10 were treated as boundary stations because of highway quick access / west-side highway access.",
+    };
 
     const MAP_PROXIMITY = {
       "01": ["15", "04", "20"],
@@ -657,6 +709,10 @@
       return ["10", "09", "07"].some(stationId => ladderCurrentlyAtStation(stationId, movedUnits));
     }
 
+    function kempsvilleAnchorLadderInQuarters(movedUnits = new Set()) {
+      return ["10", "07"].some(stationId => ladderCurrentlyAtStation(stationId, movedUnits));
+    }
+
     function isBlockedByKempsvilleRule(unit, toStationId, remainingUnits) {
       if (toStationId === "09" && unit === "L10" && committed.has("E10")) return true;
       if (!isKempsvilleCorridorStation(toStationId) || !isRegularLadder(unit)) return false;
@@ -724,6 +780,7 @@
     function kempsvillePriorityLadderTarget(vacantStations, remainingUnits) {
       if (!committed.has("L10")) return null;
       if (!remainingL2CanMove(remainingUnits)) return null;
+      if (kempsvilleAnchorLadderInQuarters()) return null;
 
       return vacantStations.find(station => station.id === "10")
         || vacantStations.find(station => station.id === "09")
@@ -794,9 +851,34 @@
       const preferred = MAP_PROXIMITY[toStationId];
       if (preferred && preferred.includes(fromStationId)) return preferred.indexOf(fromStationId);
 
-      const adjacent = ADJACENCY[toStationId] || [];
-      if (adjacent.includes(fromStationId)) return 20 + adjacent.indexOf(fromStationId);
+      const boundary = STATION_BOUNDARIES[toStationId] || [];
+      if (boundary.includes(fromStationId)) return 20 + boundary.indexOf(fromStationId);
       return 100;
+    }
+
+    function stationBoundaryRank(toStationId, fromStationId) {
+      const boundaries = STATION_BOUNDARIES[toStationId] || [];
+      if (toStationId === fromStationId) return 0;
+      if (boundaries.includes(fromStationId)) return 5 + boundaries.indexOf(fromStationId);
+      return 100;
+    }
+
+    function stationBoundaryScore(unit, toStationId) {
+      const home = unitHomeStation(unit);
+      if (!home) return 40;
+      if (home.id === toStationId) return 0;
+
+      const boundaries = STATION_BOUNDARIES[toStationId] || [];
+      if (boundaries.includes(home.id)) return 5;
+
+      const vacancyBattalion = battalionForStation(toStationId);
+      const candidateBattalion = battalionForStation(home.id);
+      if (vacancyBattalion && vacancyBattalion === candidateBattalion) return 10;
+
+      const borderingBattalions = BATTALION_PROXIMITY[vacancyBattalion] || [];
+      if (candidateBattalion && borderingBattalions.includes(candidateBattalion)) return 20;
+
+      return 40;
     }
 
     function battalionForStation(stationId) {
@@ -857,6 +939,64 @@
       return `Battalion balance: Battalion ${candidateBattalion} was the best remaining balanced option for Battalion ${vacancyBattalion}.`;
     }
 
+    function engineBackfillPriorityScore(unit, toStationId) {
+      if (!isEngine(unit)) return 0;
+      const home = unitHomeStation(unit);
+      const candidateBattalion = home ? battalionForStation(home.id) : null;
+      const vacancyBattalion = battalionForStation(toStationId);
+
+      if (candidateBattalion === "1") return 0;
+
+      if (candidateBattalion === "2") {
+        let score = unit === "E22" ? 0 : unit === "E2" ? 5 : unit === "E1" ? 10 : 15;
+        if (vacancyBattalion === "1" && unit === "E1") score -= 15;
+        if (vacancyBattalion !== "1" && unit === "E22") score -= 5;
+        return score;
+      }
+
+      if (candidateBattalion === "3") return unit === "E16" ? 0 : 10;
+      if (candidateBattalion === "4") return unit === "E21" ? 0 : 10;
+      if (candidateBattalion === "5") return unit === "E7" ? 0 : unit === "E10" ? 5 : 10;
+      return 0;
+    }
+
+    function engineBackfillPriorityNote(unit, station) {
+      if (!isEngine(unit)) return "";
+      const home = unitHomeStation(unit);
+      const candidateBattalion = home ? battalionForStation(home.id) : null;
+      const vacancyBattalion = battalionForStation(station.id);
+
+      if (candidateBattalion === "2") {
+        if (unit === "E1" && vacancyBattalion === "1") return "Engine priority: Battalion 2 order normally favors E22, then E2, then E1, but E1 received the Battalion 1 proximity advantage.";
+        if (unit === "E22") return "Engine priority: Battalion 2 order favors E22 first for non-Battalion 1 coverage.";
+        if (unit === "E2") return "Engine priority: Battalion 2 order places E2 after E22 and ahead of E1.";
+      }
+
+      if (candidateBattalion === "3" && unit === "E16") return "Engine priority: Battalion 3 priority favors E16 because Station 16 has multiple units.";
+      if (candidateBattalion === "4" && unit === "E21") return "Engine priority: Battalion 4 priority favors E21 for backfill when available.";
+      if (candidateBattalion === "5" && (unit === "E7" || unit === "E10")) return "Engine priority: Battalion 5 priority favors E7 before E10.";
+      return "";
+    }
+
+    function assignmentNotes(unit, station) {
+      return [stationBoundarySelectionNote(unit, station), battalionSelectionNote(unit, station), engineBackfillPriorityNote(unit, station)]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    function stationBoundarySelectionNote(unit, station) {
+      const home = unitHomeStation(unit);
+      if (!home) return "";
+
+      const specialKey = `${station.id}-${home.id}`;
+      if (SPECIAL_BOUNDARY_NOTES[specialKey]) return `Boundary proximity: ${SPECIAL_BOUNDARY_NOTES[specialKey]}`;
+
+      const boundaries = STATION_BOUNDARIES[station.id] || [];
+      if (boundaries.includes(home.id)) return "Boundary proximity: this unit was prioritized because its current station is a listed boundary station to the vacancy station.";
+
+      return "";
+    }
+
     function ladderBackfillOrder(unit) {
       if (unit === "L2") return 0;
       if (unit === "L8") return 1;
@@ -887,12 +1027,18 @@
         const sourceRiskB = sourceStationRisk(b, remainingUnits);
         const proximityA = homeA ? mapProximityRank(toStationId, homeA.id) : 100;
         const proximityB = homeB ? mapProximityRank(toStationId, homeB.id) : 100;
+        const boundaryRankA = homeA ? stationBoundaryRank(toStationId, homeA.id) : 100;
+        const boundaryRankB = homeB ? stationBoundaryRank(toStationId, homeB.id) : 100;
+        const boundaryScoreA = stationBoundaryScore(a, toStationId);
+        const boundaryScoreB = stationBoundaryScore(b, toStationId);
         const battalionA = battalionScore(a, toStationId, remainingUnits);
         const battalionB = battalionScore(b, toStationId, remainingUnits);
+        const enginePriorityA = engineBackfillPriorityScore(a, toStationId);
+        const enginePriorityB = engineBackfillPriorityScore(b, toStationId);
         const station16A = station16LadderPenalty(a, toStationId, remainingUnits);
         const station16B = station16LadderPenalty(b, toStationId, remainingUnits);
-        const adjacentA = homeA && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeA.id) ? 0 : 1;
-        const adjacentB = homeB && ADJACENCY[toStationId] && ADJACENCY[toStationId].includes(homeB.id) ? 0 : 1;
+        const adjacentA = homeA && STATION_BOUNDARIES[toStationId] && STATION_BOUNDARIES[toStationId].includes(homeA.id) ? 0 : 1;
+        const adjacentB = homeB && STATION_BOUNDARIES[toStationId] && STATION_BOUNDARIES[toStationId].includes(homeB.id) ? 0 : 1;
         const seasonalA = seasonal && (a === "E11" || a === "E14") ? 1 : 0;
         const seasonalB = seasonal && (b === "E11" || b === "E14") ? 1 : 0;
         const ladderA = ladderOrder[a] || 20;
@@ -900,9 +1046,12 @@
 
         return seasonalA - seasonalB
           || proximityA - proximityB
+          || boundaryScoreA - boundaryScoreB
+          || boundaryRankA - boundaryRankB
           || adjacentA - adjacentB
           || sourceRiskA - sourceRiskB
           || battalionA - battalionB
+          || enginePriorityA - enginePriorityB
           || station16A - station16B
           || ladderA - ladderB
           || a.localeCompare(b, undefined, { numeric: true });
@@ -961,6 +1110,12 @@ ${JSON.stringify(availableUnits.map(unit => ({ unit, type: unitType(unit) })), n
 Complete station inventory:
 ${JSON.stringify(stationInventory, null, 2)}
 
+Station boundary proximity list:
+${JSON.stringify(STATION_BOUNDARIES, null, 2)}
+
+Special boundary notes:
+${JSON.stringify(SPECIAL_BOUNDARY_NOTES, null, 2)}
+
 Adjacency map, based on shared station response area boundaries:
 ${JSON.stringify(ADJACENCY, null, 2)}
 
@@ -995,9 +1150,11 @@ Assignment instructions:
 - FS02 and FS22 are exceptions because of northwest corridor ladder coverage. Backfill FS02 or FS22 with an Engine first unless E2, L2, E22, and L22 are all committed. Only then consider a Ladder at FS02 or FS22.
 - Outside the L2/L8 ladder-distribution exception, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.
 - Battalion Proximity and Coverage Balance Rule: after eligible candidates are identified, rank by battalion proximity and coverage balance. Penalize non-listed battalions, the last available unit in a battalion, and moves that leave a battalion poorly covered. Use this only as a ranking layer among eligible options.
+- Engine Backfill Priority by Battalion: apply only after mandatory eligibility, coverage protection, battalion proximity, Kempsville corridor, seasonal, and policy rules. Battalion 1 stays location-based with no fixed Engine order. Battalion 2 Engine order is E22, E2, E1; E1 may receive a Battalion 1 proximity advantage, and E22 is favored for non-Battalion 1 coverage. Battalion 3 prioritizes E16, Battalion 4 prioritizes E21, and Battalion 5 prioritizes E7 before E10.
+- Station Boundary Proximity Rule: after eligible candidates are identified, rank candidates from listed boundary stations ahead of farther stations unless a stronger operational rule applies. Do not use Station 14. Treat FS10 and FS22 as boundary stations only because of highway quick access / west-side highway access, and explain that note when that relationship affects a move.
 - If E10 is committed, do not recommend L10 to backfill FS09. Keep L10 at FS10 for Kempsville corridor coverage.
 - If a ladder is already located at FS10, FS09, or FS07, the Kempsville corridor has ladder coverage. For FS10/FS09/FS07 backfill needs, prioritize an eligible Engine before moving another Ladder into that corridor unless another mandatory rule requires the Ladder.
-- If L10 is committed and L2 is available, move L2 into the Kempsville corridor first as the single ladder move for FS10, FS09, and FS07, then assign engines for the remaining backfill needs.
+- If L10 is committed and L2 is available, move L2 into the Kempsville corridor only if there is no ladder already located at FS10 or FS07. If L7 is still in quarters at FS07, or L10 is still in quarters at FS10, that satisfies the corridor ladder requirement and the next FS10/FS09/FS07 backfill move should be an Engine when eligible.
 - If E16 and L16 are both available at FS16, prioritize E16 before L16 for emergency backfill. Deprioritize L16 unless E16 is unavailable, ineligible, already committed, already assigned, or a ladder is specifically required.
 - Do not assign E1 to FS13 when another eligible backfill candidate exists. FS13 is E1's furthest option; keep E1 for a more logical station.
 - If a station cannot be covered, explain why in alerts.
@@ -1041,7 +1198,7 @@ Required JSON shape:
 
       function assign(unit, station, reason) {
         if (!unit || !station || !remainingUnits.has(unit)) return false;
-        assignments.push({ unit, toStation: station.id, reason: `${reason} ${battalionSelectionNote(unit, station)}` });
+        assignments.push({ unit, toStation: station.id, reason: `${reason} ${assignmentNotes(unit, station)}` });
         remainingUnits.delete(unit);
         if (unit === "E11") remainingUnits.delete("E14");
         if (unit === "E14") remainingUnits.delete("E11");
@@ -1353,17 +1510,35 @@ Required JSON shape:
         return;
       }
 
-      const assignmentHtml = assignments.map(assignment => {
+      const assignmentHtml = assignments.map((assignment, index) => {
         const destination = stationById[assignment.toStation];
         const label = destination ? stationLabel(destination) : `FS${assignment.toStation}`;
+        const reasonId = `assignment-reason-${index}`;
+        const labelId = `assignment-toggle-label-${index}`;
         return `
           <div class="assignment">
-            <div><span class="success-badge">${escapeHtml(assignment.unit)}</span><strong>to ${escapeHtml(label)}</strong></div>
-            <p class="reason">${escapeHtml(assignment.reason || "")}</p>
+            <div class="assignment-heading">
+              <div><span class="success-badge">${escapeHtml(assignment.unit)}</span><strong>to ${escapeHtml(label)}</strong></div>
+              <button class="assignment-toggle" type="button" data-reason-id="${reasonId}" data-label-id="${labelId}" aria-expanded="false" aria-controls="${reasonId}">
+                <span id="${labelId}">Show explanation</span>
+              </button>
+            </div>
+            <p id="${reasonId}" class="reason hidden">${escapeHtml(assignment.reason || "")}</p>
           </div>
         `;
       }).join("");
       assignmentsBox.innerHTML = `<div class="card"><strong>Assignments</strong>${assignmentHtml}</div>`;
+
+      assignmentsBox.querySelectorAll(".assignment-toggle").forEach(toggle => {
+        const reason = document.querySelector(`#${toggle.dataset.reasonId}`);
+        const label = document.querySelector(`#${toggle.dataset.labelId}`);
+        toggle.addEventListener("click", () => {
+          const expanded = toggle.getAttribute("aria-expanded") === "true";
+          toggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+          if (reason) reason.classList.toggle("hidden", expanded);
+          if (label) label.textContent = expanded ? "Show explanation" : "Hide explanation";
+        });
+      });
     }
 
     function render() {
