@@ -107,6 +107,16 @@
       background: #fff;
     }
 
+    select,
+    input[type="text"] {
+      border: 1px solid #b9c2cc;
+      border-radius: 4px;
+      padding: 7px 8px;
+      font: inherit;
+      color: var(--text);
+      background: #fff;
+    }
+
     button {
       font: inherit;
     }
@@ -128,6 +138,49 @@
       border-radius: 8px;
       padding: 14px;
       margin-bottom: 14px;
+    }
+
+    .pre-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      align-items: end;
+      margin-top: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-weight: 800;
+      color: #334252;
+      font-size: 13px;
+    }
+
+    .pre-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .pre-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      background: #f9fbfc;
+    }
+
+    .pre-row strong { margin-right: 5px; }
+
+    .pre-warnings {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
     }
 
     .unit-groups {
@@ -159,6 +212,12 @@
       background: var(--danger-bg);
       color: var(--danger);
       text-decoration: line-through;
+    }
+
+    .chip:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      text-decoration: none;
     }
 
     .stats {
@@ -377,6 +436,45 @@
       </div>
     </header>
 
+    <section class="section" aria-label="Pre-incident status">
+      <h2>Pre-incident status</h2>
+      <div class="controls">
+        <label class="control">
+          <input id="pre-normal" type="radio" name="pre-mode" checked />
+          <span>All units in service and in quarters</span>
+        </label>
+        <label class="control">
+          <input id="pre-custom" type="radio" name="pre-mode" />
+          <span>Enter pre-incident status</span>
+        </label>
+        <button id="pre-clear-button" class="secondary-button" type="button">Clear pre-incident status</button>
+      </div>
+
+      <div id="pre-panel" class="hidden">
+        <div class="pre-grid">
+          <label class="field">
+            <span>Unit</span>
+            <select id="pre-unit"></select>
+          </label>
+          <label class="field">
+            <span>Status</span>
+            <select id="pre-status"></select>
+          </label>
+          <label class="field">
+            <span>Unit backfilling / covering</span>
+            <select id="pre-station"></select>
+          </label>
+          <label class="field">
+            <span>Reason / note</span>
+            <input id="pre-note" type="text" placeholder="Optional" />
+          </label>
+          <button id="pre-add-button" class="generate" type="button">Add / update status</button>
+        </div>
+        <div id="pre-status-list" class="pre-list"></div>
+        <div id="pre-warnings" class="pre-warnings"></div>
+      </div>
+    </section>
+
     <section class="section" aria-label="Committed unit selector">
       <h2>Step 1: committed units</h2>
       <div id="unit-groups" class="unit-groups"></div>
@@ -481,6 +579,7 @@
       "No adjacent ladder-only stations: Never assign ladders as the only coverage to two stations that share a boundary.",
       "No adjacent pump-less stations: Tillers have no pump, but Tillers are not eligible backfill pieces and should not be assigned to cover vacant stations.",
       "Station 11 priority: Beach Borough, FS11, must be backfilled with both an Engine and a Ladder when possible.",
+      "Station 11 minimum coverage protection: FS11 must keep at least one Engine and one Ladder in quarters when possible. If E11 is out of service, committed, moved, or not in quarters, E14 cannot be used for outside backfill because FS11 still needs an Engine with L11. When FS11 is being backfilled, restore the Engine and Ladder minimum before using FS11 units elsewhere.",
       "Engine 15 restriction: E15 may only be used for backfill if Navy resources are confirmed staffed at Station 15.",
       "Navy coverage exception: When Navy resources are confirmed staffed at FS15, FS15 is considered covered and E15 may be moved for backfill without creating a new vacant station.",
       "Ladder backfill order: When moving a Ladder for backfill, use L2 first, then L8.",
@@ -571,9 +670,34 @@
       "5": ["5", "3", "2", "4"],
     };
 
+    const PRE_STATUS_OPTIONS = [
+      "Available / In Quarters",
+      "Out of Service - Mechanical",
+      "Out of Service - Training",
+      "Out of Service - Staffing",
+      "Out of Service - TDA",
+      "Committed to Call",
+      "Already Backfilling",
+      "Moved Up / Covering Another Station",
+      "Unavailable - Other",
+    ];
+
+    const PRE_UNAVAILABLE_STATUSES = new Set([
+      "Out of Service - Mechanical",
+      "Out of Service - Training",
+      "Out of Service - Staffing",
+      "Out of Service - TDA",
+      "Committed to Call",
+      "Unavailable - Other",
+    ]);
+
+    const PRE_LOCKED_STATUSES = new Set(["Already Backfilling"]);
+
     const allUnits = STATIONS.flatMap(station => station.apparatus);
     const stationById = Object.fromEntries(STATIONS.map(station => [station.id, station]));
     let committed = new Set();
+    let preIncidentMode = false;
+    let preIncidentStatus = new Map();
     let navy = false;
     let loading = false;
     let result = null;
@@ -582,6 +706,17 @@
     const dateInput = document.querySelector("#incident-date");
     const navyToggle = document.querySelector("#navy-toggle");
     const resetButton = document.querySelector("#reset-button");
+    const preNormal = document.querySelector("#pre-normal");
+    const preCustom = document.querySelector("#pre-custom");
+    const prePanel = document.querySelector("#pre-panel");
+    const preUnit = document.querySelector("#pre-unit");
+    const preStatus = document.querySelector("#pre-status");
+    const preStation = document.querySelector("#pre-station");
+    const preNote = document.querySelector("#pre-note");
+    const preAddButton = document.querySelector("#pre-add-button");
+    const preClearButton = document.querySelector("#pre-clear-button");
+    const preStatusList = document.querySelector("#pre-status-list");
+    const preWarnings = document.querySelector("#pre-warnings");
     const unitGroups = document.querySelector("#unit-groups");
     const committedCount = document.querySelector("#committed-count");
     const vacantCount = document.querySelector("#vacant-count");
@@ -658,6 +793,54 @@
       return STATIONS.find(station => station.apparatus.includes(unit));
     }
 
+    function normalizeStationId(stationId) {
+      return String(stationId || "").padStart(2, "0");
+    }
+
+    function preRecord(unit) {
+      return preIncidentMode ? preIncidentStatus.get(unit) : null;
+    }
+
+    function unitCurrentStationId(unit) {
+      const record = preRecord(unit);
+      if (record && record.currentStation) return normalizeStationId(record.currentStation);
+      const home = unitHomeStation(unit);
+      return home ? home.id : "";
+    }
+
+    function unitCurrentStation(unit) {
+      return stationById[unitCurrentStationId(unit)] || unitHomeStation(unit);
+    }
+
+    function isPreUnavailable(unit) {
+      const record = preRecord(unit);
+      return Boolean(record && PRE_UNAVAILABLE_STATUSES.has(record.status));
+    }
+
+    function isPreLocked(unit) {
+      const record = preRecord(unit);
+      return Boolean(record && PRE_LOCKED_STATUSES.has(record.status));
+    }
+
+    function unitAvailableForCoverage(unit, movedUnits = new Set()) {
+      if (committed.has(unit)) return false;
+      if (movedUnits.has(unit)) return false;
+      if (isPreUnavailable(unit)) return false;
+      return true;
+    }
+
+    function unitsAtStation(stationId, movedUnits = new Set()) {
+      return allUnits.filter(unit => unitCurrentStationId(unit) === stationId && unitAvailableForCoverage(unit, movedUnits));
+    }
+
+    function preStatusLabel(record) {
+      if (!record) return "";
+      const station = stationById[record.currentStation];
+      const stationText = station ? stationLabel(station) : `FS${record.currentStation}`;
+      const coveringText = record.coveringFor ? ` covering ${record.coveringFor}` : "";
+      return `${record.status}${coveringText} at ${stationText}${record.note ? ` - ${record.note}` : ""}`;
+    }
+
     function isEngine(unit) {
       return unit.startsWith("E");
     }
@@ -686,7 +869,7 @@
     }
 
     function getAvailableUnitsAsSet() {
-      return new Set(allUnits.filter(unit => !committed.has(unit) && (navy || unit !== "E15") && isBackfillEligible(unit)));
+      return new Set(getAvailableUnits());
     }
 
     function isPumpLess(unit) {
@@ -698,12 +881,8 @@
     }
 
     function ladderCurrentlyAtStation(stationId, movedUnits = new Set()) {
-      const station = stationById[stationId];
-      if (!station) return false;
-      return station.apparatus.some(unit => {
+      return unitsAtStation(stationId, movedUnits).some(unit => {
         if (!isAnyLadder(unit)) return false;
-        if (committed.has(unit)) return false;
-        if (movedUnits.has(unit)) return false;
         return true;
       });
     }
@@ -731,6 +910,7 @@
       const targetStation = stationById[toStationId];
       if (!remainingUnits.has("E16")) return false;
       if (committed.has("E16")) return false;
+      if (isPreUnavailable("E16") || isPreLocked("E16")) return false;
       if (!isBackfillEligible("E16")) return false;
       if (!canMoveFromSource("E16", remainingUnits)) return false;
       return !targetStation || !isBlockedByKempsvilleRule("E16", toStationId, remainingUnits);
@@ -757,10 +937,10 @@
       if (!isRegularLadder(unit)) return false;
       if (unit === "L2" || unit === "L8") return false;
 
-      const home = unitHomeStation(unit);
+      const home = unitCurrentStation(unit);
       if (!home) return false;
 
-      return home.apparatus.some(homeUnit => {
+      return unitsAtStation(home.id).some(homeUnit => {
         if (!isEngine(homeUnit)) return false;
         if (!remainingUnits.has(homeUnit)) return false;
         if (committed.has(homeUnit)) return false;
@@ -804,14 +984,23 @@
     }
 
     function unitPresentAtHome(unit, movedUnits = new Set()) {
-      return !committed.has(unit) && !movedUnits.has(unit);
+      const home = unitHomeStation(unit);
+      return Boolean(home && unitCurrentStationId(unit) === home.id && unitAvailableForCoverage(unit, movedUnits));
+    }
+
+    function unitPresentAtStation(unit, stationId, movedUnits = new Set()) {
+      return unitCurrentStationId(unit) === stationId && unitAvailableForCoverage(unit, movedUnits);
+    }
+
+    function stationHasWaterCoverage(stationId, movedUnits = new Set()) {
+      return unitsAtStation(stationId, movedUnits).some(unit => isEngine(unit) || isRegularLadder(unit));
     }
 
     function rescueAloneNoWaterWarnings(assignments = []) {
       const movedUnits = new Set((Array.isArray(assignments) ? assignments : []).map(assignment => assignment.unit));
       const warnings = [];
 
-      if (unitPresentAtHome("R1", movedUnits) && !unitPresentAtHome("E3", movedUnits)) {
+      if (unitPresentAtStation("R1", "03", movedUnits) && !stationHasWaterCoverage("03", movedUnits)) {
         warnings.push({
           station: stationById["03"],
           rescue: "R1",
@@ -821,7 +1010,7 @@
         });
       }
 
-      if (unitPresentAtHome("R2", movedUnits) && !unitPresentAtHome("E7", movedUnits) && !unitPresentAtHome("L7", movedUnits)) {
+      if (unitPresentAtStation("R2", "07", movedUnits) && !unitPresentAtStation("E7", "07", movedUnits) && !unitPresentAtStation("L7", "07", movedUnits) && !stationHasWaterCoverage("07", movedUnits)) {
         warnings.push({
           station: stationById["07"],
           rescue: "R2",
@@ -847,24 +1036,22 @@
       return STATIONS.filter(station => {
         if (station.navy && navy) return false;
         if (assignedToStation.has(station.id)) return false;
-
-        return !station.apparatus.some(unit => {
-          if (committed.has(unit)) return false;
-          if (movedUnits.has(unit)) return false;
-          return countsAsHomeCoverage(unit);
-        });
+        return !unitsAtStation(station.id, movedUnits).some(countsAsHomeCoverage);
       });
     }
 
     function sourceStationRisk(unit, remainingUnits) {
       if (unit === "E15" && navy) return 0;
 
-      const home = unitHomeStation(unit);
+      if (isPreUnavailable(unit) || isPreLocked(unit)) return 100;
+      if (violatesStation11Minimum(unit)) return 100;
+
+      const home = unitCurrentStation(unit);
       if (!home) return 0;
 
-      const unitsLeftAtHome = home.apparatus.filter(homeUnit => {
+      const unitsLeftAtHome = unitsAtStation(home.id).filter(homeUnit => {
         if (homeUnit === unit) return false;
-        return !committed.has(homeUnit) && (remainingUnits.has(homeUnit) || !isBackfillEligible(homeUnit));
+        return remainingUnits.has(homeUnit) || !isBackfillEligible(homeUnit) || isPreLocked(homeUnit);
       });
 
       if (!unitsLeftAtHome.some(countsAsHomeCoverage)) return 100;
@@ -884,10 +1071,9 @@
     function stationHasAvailableEngine(stationId, remainingUnits, movingUnit = null) {
       const station = stationById[stationId];
       if (!station) return false;
-      return station.apparatus.some(unit => {
+      return unitsAtStation(stationId).some(unit => {
         if (unit === movingUnit) return false;
         if (!isEngine(unit)) return false;
-        if (committed.has(unit)) return false;
         return remainingUnits.has(unit);
       });
     }
@@ -899,6 +1085,26 @@
       const e1AvailableAfterMove = stationHasAvailableEngine("01", remainingUnits, unit);
       const e8AvailableAfterMove = stationHasAvailableEngine("08", remainingUnits, unit);
       return l1Available && l8Available && !e1AvailableAfterMove && !e8AvailableAfterMove;
+    }
+
+    function station11HasEngineAfterMove(movingUnit = null, movedUnits = new Set()) {
+      return unitsAtStation("11", movedUnits).some(unit => {
+        if (unit === movingUnit) return false;
+        return isEngine(unit);
+      });
+    }
+
+    function station11HasLadderAfterMove(movingUnit = null, movedUnits = new Set()) {
+      return unitsAtStation("11", movedUnits).some(unit => {
+        if (unit === movingUnit) return false;
+        return isAnyLadder(unit);
+      });
+    }
+
+    function violatesStation11Minimum(unit, movedUnits = new Set()) {
+      if (unitCurrentStationId(unit) !== "11") return false;
+      if (unit !== "E11" && unit !== "E14" && !isAnyLadder(unit)) return false;
+      return !station11HasEngineAfterMove(unit, movedUnits) || !station11HasLadderAfterMove(unit, movedUnits);
     }
 
     function mapProximityRank(toStationId, fromStationId) {
@@ -918,7 +1124,7 @@
     }
 
     function stationBoundaryScore(unit, toStationId) {
-      const home = unitHomeStation(unit);
+      const home = unitCurrentStation(unit);
       if (!home) return 40;
       if (home.id === toStationId) return 0;
 
@@ -950,7 +1156,7 @@
 
     function battalionAvailableUnits(candidateBattalion, remainingUnits) {
       return [...remainingUnits].filter(unit => {
-        const home = unitHomeStation(unit);
+        const home = unitCurrentStation(unit);
         return home && battalionForStation(home.id) === candidateBattalion && isBackfillEligible(unit) && canMoveFromSource(unit, remainingUnits);
       });
     }
@@ -958,16 +1164,15 @@
     function battalionCoveredStations(candidateBattalion, movingUnit) {
       return STATIONS.filter(station => battalionForStation(station.id) === candidateBattalion).filter(station => {
         if (station.navy && navy) return true;
-        return station.apparatus.some(unit => {
+        return unitsAtStation(station.id).some(unit => {
           if (unit === movingUnit) return false;
-          if (committed.has(unit)) return false;
           return countsAsHomeCoverage(unit);
         });
       }).length;
     }
 
     function battalionScore(unit, toStationId, remainingUnits) {
-      const home = unitHomeStation(unit);
+      const home = unitCurrentStation(unit);
       const vacancyBattalion = battalionForStation(toStationId);
       const candidateBattalion = home ? battalionForStation(home.id) : null;
       let score = battalionProximityBaseScore(vacancyBattalion, candidateBattalion);
@@ -983,7 +1188,7 @@
     }
 
     function battalionSelectionNote(unit, station) {
-      const home = unitHomeStation(unit);
+      const home = unitCurrentStation(unit);
       const vacancyBattalion = battalionForStation(station.id);
       const candidateBattalion = home ? battalionForStation(home.id) : null;
       if (!vacancyBattalion || !candidateBattalion) return "Battalion balance: selected as the best remaining balanced option.";
@@ -995,7 +1200,7 @@
 
     function engineBackfillPriorityScore(unit, toStationId) {
       if (!isEngine(unit)) return 0;
-      const home = unitHomeStation(unit);
+      const home = unitCurrentStation(unit);
       const candidateBattalion = home ? battalionForStation(home.id) : null;
       const vacancyBattalion = battalionForStation(toStationId);
 
@@ -1016,7 +1221,7 @@
 
     function engineBackfillPriorityNote(unit, station) {
       if (!isEngine(unit)) return "";
-      const home = unitHomeStation(unit);
+      const home = unitCurrentStation(unit);
       const candidateBattalion = home ? battalionForStation(home.id) : null;
       const vacancyBattalion = battalionForStation(station.id);
 
@@ -1039,7 +1244,7 @@
     }
 
     function stationBoundarySelectionNote(unit, station) {
-      const home = unitHomeStation(unit);
+      const home = unitCurrentStation(unit);
       if (!home) return "";
 
       const specialKey = `${station.id}-${home.id}`;
@@ -1062,8 +1267,8 @@
       return [...remainingUnits]
         .filter(unit => (unit === "L2" || unit === "L8") && canMoveFromSource(unit, remainingUnits))
         .sort((a, b) => {
-          const homeA = unitHomeStation(a);
-          const homeB = unitHomeStation(b);
+          const homeA = unitCurrentStation(a);
+          const homeB = unitCurrentStation(b);
           return ladderBackfillOrder(a) - ladderBackfillOrder(b)
             || mapProximityRank(station.id, homeA ? homeA.id : "") - mapProximityRank(station.id, homeB ? homeB.id : "")
             || a.localeCompare(b, undefined, { numeric: true });
@@ -1075,8 +1280,8 @@
       const ladderOrder = { L2: 1, L8: 2 };
 
       return [...units].sort((a, b) => {
-        const homeA = unitHomeStation(a);
-        const homeB = unitHomeStation(b);
+        const homeA = unitCurrentStation(a);
+        const homeB = unitCurrentStation(b);
         const sourceRiskA = sourceStationRisk(a, remainingUnits);
         const sourceRiskB = sourceStationRisk(b, remainingUnits);
         const proximityA = homeA ? mapProximityRank(toStationId, homeA.id) : 100;
@@ -1115,12 +1320,19 @@
     function getVacantStations() {
       return STATIONS.filter(station => {
         if (station.navy && navy) return false;
-        return station.apparatus.every(unit => committed.has(unit));
+        if (station.id === "11") {
+          return !station11HasEngineAfterMove() || !station11HasLadderAfterMove();
+        }
+        return !unitsAtStation(station.id).some(countsAsHomeCoverage);
       });
     }
 
     function getAvailableUnits() {
-      return allUnits.filter(unit => !committed.has(unit) && (navy || unit !== "E15") && isBackfillEligible(unit));
+      return allUnits.filter(unit => !committed.has(unit)
+        && !isPreUnavailable(unit)
+        && !isPreLocked(unit)
+        && (navy || unit !== "E15")
+        && isBackfillEligible(unit));
     }
 
     function clearResultState() {
@@ -1128,10 +1340,131 @@
       error = null;
     }
 
+    function preIncidentWarnings() {
+      if (!preIncidentMode) return [];
+      const warnings = [];
+
+      preIncidentStatus.forEach((record, unit) => {
+        if (PRE_UNAVAILABLE_STATUSES.has(record.status)) {
+          warnings.push(`${unit} is ${record.status} and will be excluded from backfill recommendations.${record.note ? ` Note: ${record.note}` : ""}`);
+          if (record.status === "Out of Service - Training") {
+            warnings.push(`${unit} is marked unavailable for training. Consider whether training assets should be released based on operational need.`);
+          }
+        }
+        if (PRE_LOCKED_STATUSES.has(record.status)) {
+          warnings.push(`${unit} is already backfilling ${record.coveringFor || "another unit"} at FS${record.currentStation} and is locked in place. It will count at its current station and will not be moved again.`);
+        }
+        if (record.status === "Moved Up / Covering Another Station") {
+          warnings.push(`${unit} is currently counted at FS${record.currentStation}${record.coveringFor ? ` while covering ${record.coveringFor}` : ""}, not its home station.`);
+        }
+      });
+
+      rescueAloneNoWaterWarnings().forEach(warning => warnings.push(warning.message));
+
+      STATIONS.forEach(station => {
+        const currentUnits = unitsAtStation(station.id);
+        const hasHomeCoverage = station.apparatus.some(unit => !committed.has(unit) && !isPreUnavailable(unit) && countsAsHomeCoverage(unit));
+        const hasCurrentWater = currentUnits.some(unit => countsAsHomeCoverage(unit) && !RESCUES.has(unit) && !TILLERS.has(unit));
+        if (hasHomeCoverage && currentUnits.length === 0) {
+          warnings.push(`${stationLabel(station)} appears covered by home assignment, but no unit is currently located there after pre-incident status is applied.`);
+        }
+        if (currentUnits.length > 0 && !hasCurrentWater) {
+          warnings.push(`${stationLabel(station)} has units present but no water/fire suppression coverage in the current pre-incident picture.`);
+        }
+      });
+
+      return [...new Set(warnings)];
+    }
+
+    function renderPreIncidentStatus() {
+      prePanel.classList.toggle("hidden", !preIncidentMode);
+      preNormal.checked = !preIncidentMode;
+      preCustom.checked = preIncidentMode;
+
+      preStatusList.innerHTML = "";
+      if (!preIncidentMode || preIncidentStatus.size === 0) {
+        preStatusList.innerHTML = preIncidentMode ? `<span class="badge">No pre-incident status entered</span>` : "";
+      } else {
+        [...preIncidentStatus.entries()].forEach(([unit, record]) => {
+          const row = document.createElement("div");
+          row.className = "pre-row";
+          row.innerHTML = `<div><strong>${escapeHtml(unit)}</strong>${escapeHtml(preStatusLabel(record))}</div><button class="secondary-button" type="button" data-clear-pre="${escapeHtml(unit)}">Remove</button>`;
+          preStatusList.appendChild(row);
+        });
+      }
+
+      preStatusList.querySelectorAll("[data-clear-pre]").forEach(button => {
+        button.addEventListener("click", () => {
+          preIncidentStatus.delete(button.dataset.clearPre);
+          clearResultState();
+          render();
+        });
+      });
+
+      const warnings = preIncidentWarnings();
+      preWarnings.innerHTML = "";
+      warnings.forEach(warning => {
+        const div = document.createElement("div");
+        div.className = "badge warning";
+        div.textContent = warning;
+        preWarnings.appendChild(div);
+      });
+    }
+
+    function populatePreIncidentControls() {
+      preUnit.innerHTML = allUnits.map(unit => `<option value="${unit}">${unit}</option>`).join("");
+      preStatus.innerHTML = PRE_STATUS_OPTIONS.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join("");
+      preStation.innerHTML = allUnits.map(unit => {
+        const home = unitHomeStation(unit);
+        const label = home ? `${unit} (${stationLabel(home)})` : unit;
+        return `<option value="${unit}">${escapeHtml(label)}</option>`;
+      }).join("");
+    }
+
+    function applyPreIncidentStatus() {
+      const unit = preUnit.value;
+      const status = preStatus.value;
+      const home = unitHomeStation(unit);
+      const coveringFor = preStation.value || unit;
+      const coveringHome = unitHomeStation(coveringFor);
+      const currentStation = normalizeStationId(coveringHome ? coveringHome.id : (home && home.id));
+      const note = preNote.value.trim();
+
+      if (!unit || !status || status === "Available / In Quarters") {
+        preIncidentStatus.delete(unit);
+      } else {
+        preIncidentStatus.set(unit, { status, currentStation, coveringFor, note });
+      }
+
+      preUnit.selectedIndex = 0;
+      preStatus.value = "Available / In Quarters";
+      preStation.value = preUnit.value;
+      preNote.value = "";
+      clearResultState();
+      render();
+    }
+
     function buildPrompt() {
       const seasonal = isSeasonal(dateInput.value);
       const vacantStations = getVacantStations();
       const availableUnits = getAvailableUnits();
+      const preIncidentSummary = [...preIncidentStatus.entries()].map(([unit, record]) => ({
+        unit,
+        homeStation: unitHomeStation(unit) ? unitHomeStation(unit).id : "",
+        currentStation: record.currentStation,
+        coveringFor: record.coveringFor || "",
+        status: record.status,
+        note: record.note || "",
+        availableForBackfill: !PRE_UNAVAILABLE_STATUSES.has(record.status) && !PRE_LOCKED_STATUSES.has(record.status),
+        locked: PRE_LOCKED_STATUSES.has(record.status),
+      }));
+      const currentLocations = allUnits.map(unit => ({
+        unit,
+        homeStation: unitHomeStation(unit) ? unitHomeStation(unit).id : "",
+        currentStation: unitCurrentStationId(unit),
+        coveringFor: preRecord(unit) ? (preRecord(unit).coveringFor || "") : "",
+        status: preRecord(unit) ? preRecord(unit).status : "Available / In Quarters",
+      }));
       const stationInventory = STATIONS.map(station => ({
         id: station.id,
         name: station.name,
@@ -1151,6 +1484,7 @@ Return ONLY valid JSON. Do not include markdown, code fences, comments, or surro
 Incident date: ${dateInput.value}
 Seasonal restriction active: ${seasonal ? "YES, E11 and E14 are last resort between May 1 and October 1." : "NO."}
 Navy resources confirmed staffed at FS15: ${navy ? "YES, E15 may be used for backfill." : "NO, E15 must not be used for backfill."}
+Pre-incident status active: ${preIncidentMode ? "YES" : "NO, all units assumed in service and in quarters."}
 
 Committed units at the fire:
 ${JSON.stringify(Array.from(committed).sort(), null, 2)}
@@ -1160,6 +1494,15 @@ ${JSON.stringify(vacantStations.map(station => ({ id: station.id, name: station.
 
 Available units for backfill:
 ${JSON.stringify(availableUnits.map(unit => ({ unit, type: unitType(unit) })), null, 2)}
+
+Pre-incident status records:
+${JSON.stringify(preIncidentSummary, null, 2)}
+
+Current unit locations after pre-incident status is applied:
+${JSON.stringify(currentLocations, null, 2)}
+
+Pre-incident warnings:
+${JSON.stringify(preIncidentWarnings(), null, 2)}
 
 Complete station inventory:
 ${JSON.stringify(stationInventory, null, 2)}
@@ -1187,6 +1530,9 @@ Backfill rules to enforce:
 ${RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}
 
 Assignment instructions:
+- Apply pre-incident status before emergency incident selections. Use current station locations instead of home station locations when pre-incident status is active.
+- Exclude units marked out of service, committed to another call, or unavailable before the incident.
+- Units already backfilling are locked at their current station. They count as coverage there and must not be moved again.
 - Assign available units to vacant stations only.
 - Keep assignments realistic and minimal while covering every vacant station possible.
 - Consider the station each moved unit comes from. Do not solve one vacant station by making the moved unit's home station uncovered.
@@ -1194,6 +1540,7 @@ Assignment instructions:
 - Do not use units from single-apparatus source stations such as E19 for backfill, because that creates a new empty station.
 - Never assign E3 as backfill. E3 must remain with R1 because R1 cannot backfill and has no water.
 - Only one Station 11 engine may be used for backfill. Do not assign both E11 and E14 to backfill moves.
+- FS11 must keep at least one Engine and one Ladder in quarters when possible. If E11 is out of service, committed, moved, or not in quarters, do not use E14 for outside backfill. When backfilling FS11, restore the Engine and Ladder minimum before using FS11 units elsewhere.
 - Use the map to prefer the closest practical source company after hard source-station protection. For FS02, FS07 is the closest practical source, so E7 should be preferred when available.
 - For FS05, prefer E16 when available before reaching farther north/west companies such as E2.
 - For FS10, prefer E22 when available for engine backfill. For FS19, prefer E21 when available for engine backfill.
@@ -1244,12 +1591,30 @@ Required JSON shape:
 
       alerts.push("Moves exclude units that would uncover their source station. Among valid moves, the planner prefers the closest practical map source.");
 
+      if (preIncidentMode && preIncidentStatus.size > 0) {
+        alerts.push("Pre-incident status was applied before generating this recommendation. The planner used current unit locations instead of assuming every unit was in quarters.");
+        preIncidentStatus.forEach((record, unit) => {
+          if (PRE_UNAVAILABLE_STATUSES.has(record.status)) {
+            alerts.push(`${unit} was excluded because it was marked ${record.status}.${record.note ? ` Note: ${record.note}` : ""}`);
+          } else if (PRE_LOCKED_STATUSES.has(record.status)) {
+            alerts.push(`${unit} was counted at FS${record.currentStation} because it was already backfilling ${record.coveringFor || "another unit"} and locked in place.`);
+          } else {
+            alerts.push(`${unit} was counted at FS${record.currentStation}${record.coveringFor ? ` while covering ${record.coveringFor}` : ""} because it was marked ${record.status}.`);
+          }
+        });
+        preIncidentWarnings().forEach(warning => alerts.push(warning));
+      }
+
       if (seasonal && (remainingUnits.has("E11") || remainingUnits.has("E14"))) {
         alerts.push("Seasonal restriction is active. E11 and E14 are held as last-resort backfill units.");
       }
 
       if (remainingUnits.has("E16") && remainingUnits.has("L16") && engine16AvailableAndEligible(remainingUnits, "16")) {
         alerts.push("Ladder 16 was deprioritized because Engine 16 and Ladder 16 are both available at Station 16. Engine 16 should be used first for emergency backfill unless a ladder is specifically required.");
+      }
+
+      if (violatesStation11Minimum("E11") || violatesStation11Minimum("E14") || violatesStation11Minimum("L11")) {
+        alerts.push("Station 11 minimum coverage protection is active. FS11 should keep at least one Engine and one Ladder in quarters when possible. E14 will not be used for outside backfill if E11 is out, moved, or unavailable.");
       }
 
       if (leavesL1L8NoWaterArea("E1", remainingUnits) || leavesL1L8NoWaterArea("E8", remainingUnits)) {
@@ -1282,6 +1647,7 @@ Required JSON shape:
             if (sourceEngineShouldGoBeforeLadder(unit, station.id, remainingUnits)) return false;
             if (station.id === "13" && unit === "E1" && otherEligibleCandidateExists("E1", station.id, remainingUnits, predicate)) return false;
             if (leavesL1L8NoWaterArea(unit, remainingUnits)) return false;
+            if (violatesStation11Minimum(unit)) return false;
             return predicate(unit) && canMoveFromSource(unit, remainingUnits);
           }),
           station.id,
@@ -1312,16 +1678,27 @@ Required JSON shape:
 
       const station11 = vacantStations.find(station => station.id === "11");
       if (station11) {
-        const engine = pick(station11, isEngine);
-        if (engine) {
-          assign(engine, station11, "FS11 is the priority station. Place an engine there first to restore pump coverage at Beach Borough.");
+        let station11EngineCovered = station11HasEngineAfterMove();
+        let station11LadderCovered = station11HasLadderAfterMove();
+
+        if (!station11EngineCovered) {
+          const engine = pick(station11, isEngine);
+          if (engine) {
+            assign(engine, station11, "FS11 is the priority station. Place an engine there to restore Beach Borough's minimum engine-and-ladder coverage.");
+            station11EngineCovered = true;
+          } else {
+            alerts.push("FS11 could not receive an engine even though Beach Borough needs one for minimum coverage.");
+          }
         }
 
-        const ladder = pick(station11, isAnyLadder);
-        if (ladder) {
-          assign(ladder, station11, "FS11 should have ladder coverage when possible. This gives Beach Borough both engine and ladder capability.");
-        } else {
-          alerts.push("FS11 could not receive a ladder because no ladder was available.");
+        if (!station11LadderCovered) {
+          const ladder = pick(station11, isRegularLadder);
+          if (ladder) {
+            assign(ladder, station11, "FS11 should have ladder coverage when possible. This restores Beach Borough's minimum engine-and-ladder coverage.");
+            station11LadderCovered = true;
+          } else {
+            alerts.push("FS11 could not receive a ladder even though Beach Borough needs one for minimum coverage.");
+          }
         }
       }
 
@@ -1499,10 +1876,15 @@ Required JSON shape:
 
         units.forEach(unit => {
           const button = document.createElement("button");
+          const record = preRecord(unit);
+          const unavailable = isPreUnavailable(unit) || isPreLocked(unit);
           button.type = "button";
           button.className = `chip${committed.has(unit) ? " committed" : ""}`;
+          button.disabled = unavailable;
+          button.title = record ? preStatusLabel(record) : "";
           button.setAttribute("aria-pressed", committed.has(unit) ? "true" : "false");
-          button.textContent = TANKER_PAIRS[unit] ? `${unit} (+ ${TANKER_PAIRS[unit]})` : unit;
+          const statusText = record ? ` [${record.status}]` : "";
+          button.textContent = `${TANKER_PAIRS[unit] ? `${unit} (+ ${TANKER_PAIRS[unit]})` : unit}${statusText}`;
           button.addEventListener("click", () => toggleUnit(unit));
           chipWrap.appendChild(button);
         });
@@ -1639,6 +2021,7 @@ Required JSON shape:
     }
 
     function render() {
+      renderPreIncidentStatus();
       renderUnitGroups();
       renderImpact();
       renderError();
@@ -1684,7 +2067,31 @@ Required JSON shape:
       render();
     }
 
+    populatePreIncidentControls();
     dateInput.value = todayString();
+    preUnit.addEventListener("change", () => {
+      const record = preIncidentStatus.get(preUnit.value);
+      preStatus.value = record ? record.status : "Available / In Quarters";
+      preStation.value = record ? (record.coveringFor || preUnit.value) : preUnit.value;
+      preNote.value = record ? record.note : "";
+    });
+    preNormal.addEventListener("change", () => {
+      preIncidentMode = false;
+      clearResultState();
+      render();
+    });
+    preCustom.addEventListener("change", () => {
+      preIncidentMode = true;
+      clearResultState();
+      render();
+    });
+    preAddButton.addEventListener("click", applyPreIncidentStatus);
+    preClearButton.addEventListener("click", () => {
+      preIncidentStatus = new Map();
+      preIncidentMode = false;
+      clearResultState();
+      render();
+    });
     navyToggle.addEventListener("change", event => {
       navy = event.target.checked;
       clearResultState();
