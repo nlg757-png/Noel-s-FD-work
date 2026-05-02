@@ -451,6 +451,7 @@
       "Rescue centering note: If only one Rescue remains available citywide, mention that Rescue coverage should be centered at FS03 or FS07 if operations allow, but do not assign R1 or R2 as backfill.",
       "County crew preference: County stations FS05, FS06, FS13, and FS17 should be backfilled with a 4-person crew when possible.",
       "Seasonal engine restriction: Between May 1 and October 1, E11 and E14 are last resort for backfill and should only be used if no other unit is available.",
+      "Station 11 engine limit: Only one Station 11 engine may be used for backfill at a time. If E11 is assigned, E14 must stay at FS11; if E14 is assigned, E11 must stay at FS11.",
       "Ladder 21 trigger: If L21 is committed, ladder coverage becomes a priority in the southern portion of the city.",
       "Ladder 10 trigger: If L10 is committed, a backfill ladder should be assigned to the Kempsville corridor, FS09 or FS10.",
       "Ladder 7 trigger: If L7 is committed, relocate L10, if available, to FS09.",
@@ -773,6 +774,7 @@ Assignment instructions:
 - A tanker alone does not keep a source station covered. Do not use engines from engine-tanker stations such as E5, E6, or E13 as backfill if that leaves only the tanker behind.
 - Do not use units from single-apparatus source stations such as E19 for backfill, because that creates a new empty station.
 - Never assign E3 as backfill. E3 must remain with R1 because R1 cannot backfill and has no water.
+- Only one Station 11 engine may be used for backfill. Do not assign both E11 and E14 to backfill moves.
 - Use the map to prefer the closest practical source company after hard source-station protection. For FS02, FS07 is the closest practical source, so E7 should be preferred when available.
 - For FS05, prefer E16 when available before reaching farther north/west companies such as E2.
 - R1 and R2 should not be left at their home station without an Engine if an equally close/practical option exists, but this should not block a closest practical map-based move when that station still has staffed apparatus in quarters.
@@ -819,13 +821,19 @@ Required JSON shape:
         if (!unit || !station || !remainingUnits.has(unit)) return false;
         assignments.push({ unit, toStation: station.id, reason });
         remainingUnits.delete(unit);
+        if (unit === "E11") remainingUnits.delete("E14");
+        if (unit === "E14") remainingUnits.delete("E11");
         coveredStations.add(station.id);
         return true;
       }
 
       function pick(station, predicate) {
+        const station11EngineAlreadyAssigned = assignments.some(assignment => assignment.unit === "E11" || assignment.unit === "E14");
         return sortUnitsForBackfill(
-          [...remainingUnits].filter(unit => predicate(unit) && canMoveFromSource(unit, remainingUnits)),
+          [...remainingUnits].filter(unit => {
+            if (station11EngineAlreadyAssigned && (unit === "E11" || unit === "E14")) return false;
+            return predicate(unit) && canMoveFromSource(unit, remainingUnits);
+          }),
           station.id,
           remainingUnits
         )[0];
