@@ -845,6 +845,12 @@
       if (!record) return "";
       const station = stationById[record.currentStation];
       const stationText = station ? stationLabel(station) : `FS${record.currentStation}`;
+      if (record.status === PRE_ASSIGNED_BACKFILL_STATUS) {
+        return `Backfilling FS${normalizeStationId(record.currentStation)}${record.note ? ` - ${record.note}` : ""}`;
+      }
+      if (record.status.startsWith("Out of Service - ")) {
+        return `Out of service - ${record.status.replace("Out of Service - ", "")}`;
+      }
       const coveringText = record.coveringFor ? ` covering ${record.coveringFor}` : "";
       return `${record.status}${coveringText} at ${stationText}${record.note ? ` - ${record.note}` : ""}`;
     }
@@ -1823,7 +1829,7 @@
         status: PRE_ASSIGNED_BACKFILL_STATUS,
         currentStation: station.id,
         coveringFor: `FS${station.id}`,
-        note: "Selected from pre-incident suggestion",
+        note: "",
       });
       lastPreIncidentUnit = unit;
       clearResultState();
@@ -2279,7 +2285,7 @@ Required JSON shape:
           button.disabled = unavailable;
           button.title = record ? preStatusLabel(record) : "";
           button.setAttribute("aria-pressed", committed.has(unit) ? "true" : "false");
-          const statusText = record ? ` [${record.status}]` : "";
+          const statusText = record ? ` [${preStatusLabel(record)}]` : "";
           button.textContent = `${TANKER_PAIRS[unit] ? `${unit} (+ ${TANKER_PAIRS[unit]})` : unit}${statusText}`;
           button.addEventListener("click", () => toggleUnit(unit));
           chipWrap.appendChild(button);
