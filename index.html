@@ -470,8 +470,12 @@
           </label>
           <button id="pre-add-button" class="generate" type="button">Add / update status</button>
         </div>
+        <div class="controls" style="margin-top:12px;">
+          <button id="pre-suggest-button" class="secondary-button" type="button">Generate pre-incident suggestions</button>
+        </div>
         <div id="pre-status-list" class="pre-list"></div>
         <div id="pre-warnings" class="pre-warnings"></div>
+        <div id="pre-suggestions" class="pre-list"></div>
       </div>
     </section>
 
@@ -598,7 +602,7 @@
       "Source station protection: Do not move a unit if that move would leave its home station uncovered. A tanker alone does not count as home-station coverage.",
       "Single-apparatus and engine-tanker station protection: Do not use a unit from a station that has only one movable company, including single-engine stations and engine-plus-tanker stations such as FS05, FS06, and FS13.",
       "Map proximity: After source-station protection, use the closest practical apparatus from the station map. For FS02, FS07 is the closest practical source, so E7 is preferred when available.",
-      "FS05 proximity: For FS05, prefer E16 when available before reaching farther north/west companies such as E2.",
+      "FS05 proximity: For FS05, prefer E21 first when available, then E16, because both are Battalion 4 options and E21 is the closer practical first move.",
       "Rescue station engine protection: E3 cannot be used as a backfill piece because it is housed with R1. R1 cannot backfill and has no water. R2 should not be left without E7 when another equally practical backfill unit is available.",
       "Backfill apparatus eligibility: Only Engines and regular Ladders can backfill a vacant station. Tillers, Rescues, and Tankers cannot be assigned as backfill pieces.",
       "Tiller restriction: L1, L7, and L11 may remain in quarters as their station's apparatus, but they are never to be moved as backfill pieces.",
@@ -648,7 +652,7 @@
     const MAP_PROXIMITY = {
       "01": ["15", "04", "20"],
       "02": ["07", "22", "04", "20"],
-      "05": ["16", "18", "21", "17", "06"],
+      "05": ["21", "16", "18", "17", "06"],
       "10": ["22", "07", "09", "18", "19"],
       "13": ["17", "06", "21", "18", "16"],
       "19": ["21", "18", "10", "09"],
@@ -677,7 +681,6 @@
       "Out of Service - Staffing",
       "Out of Service - TDA",
       "Committed to Call",
-      "Already Backfilling",
       "Moved Up / Covering Another Station",
       "Unavailable - Other",
     ];
@@ -691,13 +694,16 @@
       "Unavailable - Other",
     ]);
 
-    const PRE_LOCKED_STATUSES = new Set(["Already Backfilling"]);
+    const PRE_ASSIGNED_BACKFILL_STATUS = "Assigned Pre-Incident Backfill";
+    const PRE_LOCKED_STATUSES = new Set([PRE_ASSIGNED_BACKFILL_STATUS]);
 
     const allUnits = STATIONS.flatMap(station => station.apparatus);
     const stationById = Object.fromEntries(STATIONS.map(station => [station.id, station]));
     let committed = new Set();
     let preIncidentMode = false;
     let preIncidentStatus = new Map();
+    let lastPreIncidentUnit = null;
+    let preSuggestionResult = null;
     let navy = false;
     let loading = false;
     let result = null;
@@ -714,9 +720,11 @@
     const preStation = document.querySelector("#pre-station");
     const preNote = document.querySelector("#pre-note");
     const preAddButton = document.querySelector("#pre-add-button");
+    const preSuggestButton = document.querySelector("#pre-suggest-button");
     const preClearButton = document.querySelector("#pre-clear-button");
     const preStatusList = document.querySelector("#pre-status-list");
     const preWarnings = document.querySelector("#pre-warnings");
+    const preSuggestions = document.querySelector("#pre-suggestions");
     const unitGroups = document.querySelector("#unit-groups");
     const committedCount = document.querySelector("#committed-count");
     const vacantCount = document.querySelector("#vacant-count");
@@ -839,6 +847,22 @@
       const stationText = station ? stationLabel(station) : `FS${record.currentStation}`;
       const coveringText = record.coveringFor ? ` covering ${record.coveringFor}` : "";
       return `${record.status}${coveringText} at ${stationText}${record.note ? ` - ${record.note}` : ""}`;
+    }
+
+    function selectedPreIncidentBackfillsForStation(stationId) {
+      const normalized = normalizeStationId(stationId);
+      return [...preIncidentStatus.entries()]
+        .filter(([, record]) => record.status === PRE_ASSIGNED_BACKFILL_STATUS && normalizeStationId(record.currentStation) === normalized)
+        .map(([unit]) => unit);
+    }
+
+    function unitDisplayName(unit) {
+      if (!unit) return "";
+      if (unit.startsWith("E")) return `Engine ${unit.slice(1)}`;
+      if (unit.startsWith("L")) return `Ladder ${unit.slice(1)}`;
+      if (unit.startsWith("R")) return `Rescue ${unit.slice(1)}`;
+      if (unit.startsWith("T")) return `Tanker ${unit.slice(1)}`;
+      return unit;
     }
 
     function isEngine(unit) {
@@ -1351,9 +1375,6 @@
             warnings.push(`${unit} is marked unavailable for training. Consider whether training assets should be released based on operational need.`);
           }
         }
-        if (PRE_LOCKED_STATUSES.has(record.status)) {
-          warnings.push(`${unit} is already backfilling ${record.coveringFor || "another unit"} at FS${record.currentStation} and is locked in place. It will count at its current station and will not be moved again.`);
-        }
         if (record.status === "Moved Up / Covering Another Station") {
           warnings.push(`${unit} is currently counted at FS${record.currentStation}${record.coveringFor ? ` while covering ${record.coveringFor}` : ""}, not its home station.`);
         }
@@ -1376,6 +1397,252 @@
       return [...new Set(warnings)];
     }
 
+    function validCandidatesForStation(station, predicate, remainingUnits = new Set(getAvailableUnits())) {
+      return sortUnitsForBackfill(
+        [...remainingUnits].filter(unit => {
+          if (isBlockedByKempsvilleRule(unit, station.id, remainingUnits)) return false;
+          if (sourceEngineShouldGoBeforeLadder(unit, station.id, remainingUnits)) return false;
+          if (station.id === "13" && unit === "E1" && otherEligibleCandidateExists("E1", station.id, remainingUnits, predicate)) return false;
+          if (leavesL1L8NoWaterArea(unit, remainingUnits)) return false;
+          if (violatesStation11Minimum(unit)) return false;
+          return predicate(unit) && canMoveFromSource(unit, remainingUnits);
+        }),
+        station.id,
+        remainingUnits
+      );
+    }
+
+    function preIncidentCoverageIssue(unit, record) {
+      const home = unitHomeStation(unit);
+      const current = stationById[record.currentStation] || home;
+      const issueStation = record.status === "Moved Up / Covering Another Station" && home ? home : current;
+      if (!issueStation) return { station: null, text: "No station could be identified for this unit problem." };
+
+      let text = `${stationLabel(issueStation)} was checked because ${unitDisplayName(unit)} is marked ${record.status}.`;
+      if (PRE_UNAVAILABLE_STATUSES.has(record.status)) {
+        text = `${stationLabel(issueStation)} has a pre-incident unit problem because ${unitDisplayName(unit)} is ${record.status}. The unit is excluded from backfill recommendations.`;
+      } else if (record.status === "Moved Up / Covering Another Station") {
+        text = `${stationLabel(issueStation)} may have a coverage gap because ${unitDisplayName(unit)} is currently covering ${record.coveringFor || "another unit"} at FS${record.currentStation}.`;
+      }
+
+      if (isEngine(unit)) text += " The system looked for engine backfill to restore or protect water/fire suppression coverage.";
+      else if (isRegularLadder(unit) || TILLERS.has(unit)) text += " The system applied existing ladder, corridor, and water coverage rules for the affected station.";
+      else text += " The system applied existing coverage rules for the affected station.";
+
+      return { station: issueStation, text };
+    }
+
+    function warningFlagsForSuggestion(unit, station) {
+      const flags = [];
+      const candidateBattalion = battalionForStation(unitCurrentStationId(unit));
+      const vacancyBattalion = battalionForStation(station.id);
+      if (candidateBattalion && vacancyBattalion && candidateBattalion !== vacancyBattalion) {
+        flags.push(`Review Battalion ${candidateBattalion} coverage balance.`);
+      }
+      if (isSeasonal(dateInput.value) && (unit === "E11" || unit === "E14")) {
+        flags.push("Seasonal restriction: Station 11 engines are last resort.");
+      }
+      if (station.id === "11") {
+        flags.push("Confirm FS11 keeps minimum engine-and-ladder coverage.");
+      }
+      return flags;
+    }
+
+    function suggestionReason(unit, station) {
+      const current = unitCurrentStation(unit);
+      const home = unitHomeStation(unit);
+      const notes = assignmentNotes(unit, station);
+      const locationText = current && home && current.id !== home.id
+        ? `${unit} is currently at ${stationLabel(current)}, not its home station.`
+        : `${unit} is available from ${current ? stationLabel(current) : "its current station"}.`;
+      return `${locationText} It is a valid option for ${stationLabel(station)} under the existing eligibility, boundary, battalion, coverage-balance, and apparatus rules. ${notes}`.trim();
+    }
+
+    function orderPreIncidentSuggestionsForStation(station, candidates) {
+      if (station.id === "05") {
+        const fs05Order = { E21: 0, E16: 1 };
+        return [...candidates].sort((a, b) => {
+          const rankA = Object.prototype.hasOwnProperty.call(fs05Order, a) ? fs05Order[a] : 20;
+          const rankB = Object.prototype.hasOwnProperty.call(fs05Order, b) ? fs05Order[b] : 20;
+          return rankA - rankB || candidates.indexOf(a) - candidates.indexOf(b);
+        });
+      }
+      return candidates;
+    }
+
+    function buildPreIncidentSuggestionGroup(station, problemUnits, coverageText) {
+      const selectedUnits = selectedPreIncidentBackfillsForStation(station.id);
+      if (selectedUnits.length > 0) {
+        return {
+          stationId: station.id,
+          destination: stationLabel(station),
+          unitProblem: problemUnits.map(unit => {
+            const record = preIncidentStatus.get(unit);
+            return `${unitDisplayName(unit)}: ${record.status}${record.note ? ` - ${record.note}` : ""}`;
+          }).join("; "),
+          coverageIssue: `${coverageText} ${selectedUnits.join(" or ")} has already been selected to backfill ${stationLabel(station)} and is counted there for later emergency incidents.`,
+          suggestions: [],
+          selectedUnits,
+          preferred: `${selectedUnits.join(" or ")} is already selected as the pre-incident backfill for ${stationLabel(station)}.`,
+        };
+      }
+
+      const remainingUnits = new Set(getAvailableUnits());
+      let primaryPredicate = isEngine;
+      const hasLadderProblem = problemUnits.some(unit => isRegularLadder(unit) || TILLERS.has(unit));
+      if (hasLadderProblem && shouldFillLadderNeedFirst(station)) primaryPredicate = isRegularLadder;
+      if (station.id === "11" && !station11HasEngineAfterMove()) primaryPredicate = isEngine;
+      if (station.id === "11" && station11HasEngineAfterMove() && !station11HasLadderAfterMove()) primaryPredicate = isRegularLadder;
+
+      const primary = validCandidatesForStation(station, primaryPredicate, remainingUnits);
+      const fallback = validCandidatesForStation(station, candidate => isBackfillEligible(candidate), remainingUnits);
+      const combined = orderPreIncidentSuggestionsForStation(
+        station,
+        [...primary, ...fallback].filter((candidate, index, array) => array.indexOf(candidate) === index)
+      ).slice(0, 2);
+
+      const suggestions = combined.map(candidate => {
+        const current = unitCurrentStation(candidate);
+        const home = unitHomeStation(candidate);
+        const flags = warningFlagsForSuggestion(candidate, station);
+        return {
+          unit: candidate,
+          currentStation: current ? stationLabel(current) : "Unknown",
+          homeStation: home ? stationLabel(home) : "Unknown",
+          toStation: station.id,
+          destination: stationLabel(station),
+          reason: suggestionReason(candidate, station),
+          warningFlags: flags.length ? flags : ["None identified."],
+        };
+      });
+
+      let preferred = "No valid backfill suggestion was found based on the current rules and availability. User review is required.";
+      if (suggestions.length === 1) {
+        preferred = `Only one valid backfill suggestion was found for ${stationLabel(station)} based on the current rules and availability.`;
+      } else if (suggestions.length > 1) {
+        preferred = `${suggestions[0].unit} appears to be the stronger suggestion for ${stationLabel(station)} because it ranked highest under the existing boundary, battalion proximity, coverage balance, and apparatus rules.`;
+      }
+
+      return {
+        stationId: station.id,
+        destination: stationLabel(station),
+        unitProblem: problemUnits.map(unit => {
+          const record = preIncidentStatus.get(unit);
+          return `${unitDisplayName(unit)}: ${record.status}${record.note ? ` - ${record.note}` : ""}`;
+        }).join("; "),
+        coverageIssue: coverageText,
+        suggestions,
+        selectedUnits: [],
+        preferred,
+      };
+    }
+
+    function buildPreIncidentSuggestions() {
+      if (!preIncidentMode || preIncidentStatus.size === 0) {
+        return {
+          unitProblem: "No pre-incident unit problem entered.",
+          coverageIssue: "Enter a unit problem first, then generate pre-incident suggestions.",
+          suggestions: [],
+          suggestionGroups: [],
+          preferred: "No valid backfill suggestion was found based on the current rules and availability. User review is required.",
+        };
+      }
+
+      const stationIssues = new Map();
+      const noStationIssues = [];
+      [...preIncidentStatus.entries()].forEach(([unit, record]) => {
+        if (record.status === PRE_ASSIGNED_BACKFILL_STATUS) return;
+        const issue = preIncidentCoverageIssue(unit, record);
+        if (!issue.station) {
+          noStationIssues.push(`${unit}: ${issue.text}`);
+          return;
+        }
+        const existing = stationIssues.get(issue.station.id) || {
+          station: issue.station,
+          units: [],
+          texts: [],
+        };
+        existing.units.push(unit);
+        existing.texts.push(issue.text);
+        stationIssues.set(issue.station.id, existing);
+      });
+
+      const suggestionGroups = [...stationIssues.values()].map(issue => buildPreIncidentSuggestionGroup(
+        issue.station,
+        issue.units,
+        [...new Set(issue.texts)].join(" ")
+      ));
+      const suggestions = suggestionGroups.flatMap(group => group.suggestions.map(suggestion => ({
+        ...suggestion,
+        groupDestination: group.destination,
+      })));
+      const unitProblem = [...preIncidentStatus.entries()].map(([unit, record]) =>
+        `${unitDisplayName(unit)}: ${record.status}${record.note ? ` - ${record.note}` : ""}`
+      ).join("; ");
+      const coverageIssue = [
+        ...suggestionGroups.map(group => `${group.destination}: ${group.coverageIssue}`),
+        ...noStationIssues,
+      ].join(" ");
+      const preferred = suggestionGroups.length
+        ? suggestionGroups.map(group => group.preferred).join(" ")
+        : "No valid backfill suggestion was found based on the current rules and availability. User review is required.";
+
+      return {
+        unitProblem,
+        coverageIssue,
+        suggestions,
+        suggestionGroups,
+        preferred,
+      };
+    }
+
+    function buildPreIncidentPlanResult() {
+      const suggestionResult = buildPreIncidentSuggestions();
+      preSuggestionResult = suggestionResult;
+      const suggestions = Array.isArray(suggestionResult.suggestions) ? suggestionResult.suggestions : [];
+      const suggestionGroups = Array.isArray(suggestionResult.suggestionGroups) ? suggestionResult.suggestionGroups : [];
+      const alerts = [
+        `Pre-Incident Unit Problem: ${suggestionResult.unitProblem}`,
+        `Coverage Issue Identified: ${suggestionResult.coverageIssue}`,
+        suggestionResult.preferred,
+        "These are backfill suggestions for user review. Final operational decision remains with the user.",
+      ];
+
+      suggestionGroups.forEach(group => {
+        if (group.suggestions.length === 1) {
+          alerts.push(`Only one valid backfill suggestion was found for ${group.destination} based on the current rules and availability.`);
+        }
+        if (group.suggestions.length === 0) {
+          alerts.push(`No valid backfill suggestion was found for ${group.destination}. User review is required.`);
+        }
+      });
+
+      return {
+        assignments: suggestionGroups.map(group => ({
+          unit: group.selectedUnits && group.selectedUnits.length
+            ? `${group.selectedUnits.join(" or ")} selected`
+            : group.suggestions.map(suggestion => suggestion.unit).join(" or ") || "No valid option",
+          toStation: group.stationId,
+          reason: group.selectedUnits && group.selectedUnits.length
+            ? `${group.selectedUnits.join(" or ")} has already been selected as the pre-incident backfill for ${group.destination}. The emergency generator will count that unit at ${group.destination} and will not recommend moving it again.`
+            : group.suggestions.length
+            ? group.suggestions.map((suggestion, index) => (
+              `Option ${index + 1}: ${suggestion.unit}. ${suggestion.reason} Warning flags: ${suggestion.warningFlags.join(" ")}`
+            )).join(" ")
+            : "No valid backfill suggestion was found based on the current rules and availability. User review is required.",
+        })),
+        alerts,
+        mutualAid: {
+          flag: false,
+          reason: "Pre-incident suggestion mode does not make a single emergency assignment.",
+        },
+        summary: suggestions.length
+          ? `Pre-incident suggestion mode found ${suggestions.length} valid option${suggestions.length === 1 ? "" : "s"} across ${suggestionGroups.length} station coverage issue${suggestionGroups.length === 1 ? "" : "s"}. Review the options and make the final operational decision.`
+          : "No valid pre-incident backfill suggestion was found. User review is required.",
+        preIncidentSuggestionMode: true,
+      };
+    }
+
     function renderPreIncidentStatus() {
       prePanel.classList.toggle("hidden", !preIncidentMode);
       preNormal.checked = !preIncidentMode;
@@ -1396,6 +1663,8 @@
       preStatusList.querySelectorAll("[data-clear-pre]").forEach(button => {
         button.addEventListener("click", () => {
           preIncidentStatus.delete(button.dataset.clearPre);
+          if (lastPreIncidentUnit === button.dataset.clearPre) lastPreIncidentUnit = null;
+          preSuggestionResult = null;
           clearResultState();
           render();
         });
@@ -1409,6 +1678,73 @@
         div.textContent = warning;
         preWarnings.appendChild(div);
       });
+
+      renderPreIncidentSuggestions();
+    }
+
+    function renderPreIncidentSuggestions() {
+      preSuggestions.innerHTML = "";
+      if (!preSuggestionResult) return;
+
+      const suggestions = preSuggestionResult.suggestions || [];
+      const suggestionGroups = preSuggestionResult.suggestionGroups || [];
+      const suggestionHtml = suggestionGroups.length
+        ? suggestionGroups.map((group, groupIndex) => {
+            const selectedUnits = group.selectedUnits || [];
+            const unitText = selectedUnits.length
+              ? `${selectedUnits.join(" or ")} selected`
+              : group.suggestions.map(suggestion => suggestion.unit).join(" or ") || "No valid option";
+            const optionDetails = selectedUnits.length
+              ? `<p class="reason"><strong>Selected backfill:</strong> ${escapeHtml(selectedUnits.join(" or "))} is counted at ${escapeHtml(group.destination)} for any later emergency incident.</p>`
+              : group.suggestions.length
+              ? group.suggestions.map((suggestion, index) => `
+                  <p class="reason"><strong>Option ${index + 1}:</strong> ${escapeHtml(suggestion.unit)} from ${escapeHtml(suggestion.currentStation)}. ${escapeHtml(suggestion.reason)}</p>
+                  <p class="reason"><strong>Warning flags:</strong> ${escapeHtml(suggestion.warningFlags.join(" "))}</p>
+                  <button class="secondary-button use-pre-suggestion" type="button" data-pre-unit="${escapeHtml(suggestion.unit)}" data-pre-station="${escapeHtml(group.stationId)}">Use ${escapeHtml(suggestion.unit)} for ${escapeHtml(group.destination)}</button>
+                `).join("")
+              : `<p class="reason">No valid backfill suggestion was found for this station based on the current rules and availability. User review is required.</p>`;
+            return `
+              <div class="assignment">
+                <div class="assignment-heading">
+                  <div><span class="success-badge">${escapeHtml(unitText)}</span><strong>to ${escapeHtml(group.destination)}</strong></div>
+                </div>
+                <p class="reason"><strong>Unit problem:</strong> ${escapeHtml(group.unitProblem)}</p>
+                <p class="reason"><strong>Coverage issue:</strong> ${escapeHtml(group.coverageIssue)}</p>
+                ${optionDetails}
+                <p class="reason"><strong>Preferred suggestion:</strong> ${escapeHtml(group.preferred)}</p>
+              </div>
+            `;
+          }).join("")
+        : suggestions.length
+          ? suggestions.map((suggestion, index) => `
+            <div class="assignment">
+              <div class="assignment-heading">
+                <div><span class="success-badge">${escapeHtml(suggestion.unit)}</span><strong>Suggestion ${index + 1}: to ${escapeHtml(suggestion.destination)}</strong></div>
+              </div>
+              <p class="reason"><strong>Current station:</strong> ${escapeHtml(suggestion.currentStation)}</p>
+              <p class="reason"><strong>Home station:</strong> ${escapeHtml(suggestion.homeStation)}</p>
+              <p class="reason"><strong>Reason:</strong> ${escapeHtml(suggestion.reason)}</p>
+              <p class="reason"><strong>Warning flags:</strong> ${escapeHtml(suggestion.warningFlags.join(" "))}</p>
+            </div>
+          `).join("")
+          : `<p class="reason">No valid backfill suggestion was found based on the current rules and availability. User review is required.</p>`;
+
+      preSuggestions.innerHTML = `
+        <div class="card">
+          <strong>Pre-incident backfill suggestions (${suggestions.length} option${suggestions.length === 1 ? "" : "s"} shown)</strong>
+          <p><strong>Pre-Incident Unit Problem:</strong> ${escapeHtml(preSuggestionResult.unitProblem)}</p>
+          <p><strong>Coverage Issue Identified:</strong> ${escapeHtml(preSuggestionResult.coverageIssue)}</p>
+          ${suggestionHtml}
+          <p><strong>Preferred Suggestion:</strong> ${escapeHtml(preSuggestionResult.preferred)}</p>
+          <p class="reason"><strong>Decision Note:</strong> These are backfill suggestions for user review. Final operational decision remains with the user.</p>
+        </div>
+      `;
+
+      preSuggestions.querySelectorAll(".use-pre-suggestion").forEach(button => {
+        button.addEventListener("click", () => {
+          applyPreIncidentSuggestion(button.dataset.preUnit, button.dataset.preStation);
+        });
+      });
     }
 
     function populatePreIncidentControls() {
@@ -1421,7 +1757,7 @@
       }).join("");
     }
 
-    function applyPreIncidentStatus() {
+    function savePreIncidentStatusFromForm({ clearForm = false } = {}) {
       const unit = preUnit.value;
       const status = preStatus.value;
       const home = unitHomeStation(unit);
@@ -1434,12 +1770,49 @@
         preIncidentStatus.delete(unit);
       } else {
         preIncidentStatus.set(unit, { status, currentStation, coveringFor, note });
+        lastPreIncidentUnit = unit;
       }
 
+      preSuggestionResult = null;
+      if (clearForm) {
+        preUnit.selectedIndex = 0;
+        preStatus.value = "Available / In Quarters";
+        preStation.value = preUnit.value;
+        preNote.value = "";
+      }
+      clearResultState();
+    }
+
+    function applyPreIncidentStatus() {
+      savePreIncidentStatusFromForm({ clearForm: true });
+      render();
+    }
+
+    function preparePreIncidentSuggestionsFromForm() {
+      if (!preIncidentMode) return;
+      if (preStatus.value && preStatus.value !== "Available / In Quarters") {
+        savePreIncidentStatusFromForm({ clearForm: false });
+      }
+    }
+
+    function resetPreIncidentForm() {
       preUnit.selectedIndex = 0;
       preStatus.value = "Available / In Quarters";
       preStation.value = preUnit.value;
       preNote.value = "";
+    }
+
+    function applyPreIncidentSuggestion(unit, stationId) {
+      const station = stationById[normalizeStationId(stationId)];
+      if (!unit || !station) return;
+      committed.delete(unit);
+      preIncidentStatus.set(unit, {
+        status: PRE_ASSIGNED_BACKFILL_STATUS,
+        currentStation: station.id,
+        coveringFor: `FS${station.id}`,
+        note: "Selected from pre-incident suggestion",
+      });
+      lastPreIncidentUnit = unit;
       clearResultState();
       render();
     }
@@ -1532,7 +1905,7 @@ ${RULES.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}
 Assignment instructions:
 - Apply pre-incident status before emergency incident selections. Use current station locations instead of home station locations when pre-incident status is active.
 - Exclude units marked out of service, committed to another call, or unavailable before the incident.
-- Units already backfilling are locked at their current station. They count as coverage there and must not be moved again.
+- Units marked Moved Up / Covering Another Station count at the station of the unit they are covering.
 - Assign available units to vacant stations only.
 - Keep assignments realistic and minimal while covering every vacant station possible.
 - Consider the station each moved unit comes from. Do not solve one vacant station by making the moved unit's home station uncovered.
@@ -1542,7 +1915,7 @@ Assignment instructions:
 - Only one Station 11 engine may be used for backfill. Do not assign both E11 and E14 to backfill moves.
 - FS11 must keep at least one Engine and one Ladder in quarters when possible. If E11 is out of service, committed, moved, or not in quarters, do not use E14 for outside backfill. When backfilling FS11, restore the Engine and Ladder minimum before using FS11 units elsewhere.
 - Use the map to prefer the closest practical source company after hard source-station protection. For FS02, FS07 is the closest practical source, so E7 should be preferred when available.
-- For FS05, prefer E16 when available before reaching farther north/west companies such as E2.
+- For FS05, prefer E21 first when available, then E16, because both are Battalion 4 options and E21 is the closer practical first move.
 - For FS10, prefer E22 when available for engine backfill. For FS19, prefer E21 when available for engine backfill.
 - R1 and R2 should not be left at their home station without an Engine if an equally close/practical option exists, but this should not block a closest practical map-based move when that station still has staffed apparatus in quarters.
 - Never assign L1, L7, L11, R1, R2, T5, T6, or T13 as backfill. Mention Rescue centering as a note only; do not use a Rescue as the backfill piece.
@@ -1596,8 +1969,6 @@ Required JSON shape:
         preIncidentStatus.forEach((record, unit) => {
           if (PRE_UNAVAILABLE_STATUSES.has(record.status)) {
             alerts.push(`${unit} was excluded because it was marked ${record.status}.${record.note ? ` Note: ${record.note}` : ""}`);
-          } else if (PRE_LOCKED_STATUSES.has(record.status)) {
-            alerts.push(`${unit} was counted at FS${record.currentStation} because it was already backfilling ${record.coveringFor || "another unit"} and locked in place.`);
           } else {
             alerts.push(`${unit} was counted at FS${record.currentStation}${record.coveringFor ? ` while covering ${record.coveringFor}` : ""} because it was marked ${record.status}.`);
           }
@@ -1899,7 +2270,8 @@ Required JSON shape:
       const vacantStations = getVacantStations();
       const availableUnits = getAvailableUnits();
       const rescueWarnings = rescueAloneNoWaterWarnings();
-      const needsPlan = vacantStations.length > 0 || rescueWarnings.length > 0;
+      const preSuggestionReady = preIncidentMode && preIncidentStatus.size > 0 && committed.size === 0;
+      const needsPlan = vacantStations.length > 0 || rescueWarnings.length > 0 || preSuggestionReady;
 
       committedCount.textContent = committed.size;
       vacantCount.textContent = vacantStations.length;
@@ -1921,7 +2293,10 @@ Required JSON shape:
       });
 
       if (vacantStations.length === 0 && rescueWarnings.length === 0) {
-        impactBadges.insertAdjacentHTML("beforeend", `<span class="badge">No vacant stations</span>`);
+        const message = preSuggestionReady
+          ? "Pre-incident status entered: ready to generate two backfill suggestions"
+          : "No vacant stations";
+        impactBadges.insertAdjacentHTML("beforeend", `<span class="badge">${message}</span>`);
       } else if (vacantStations.length > 0) {
         vacantStations.forEach(station => {
           const badge = document.createElement("span");
@@ -1935,7 +2310,9 @@ Required JSON shape:
       generateButton.disabled = loading;
       generateButton.textContent = loading
         ? "Generating backfill plan..."
-        : rescueWarnings.length > 0 && vacantStations.length === 0
+        : preSuggestionReady
+          ? "Generate pre-incident backfill suggestions"
+          : rescueWarnings.length > 0 && vacantStations.length === 0
           ? `Generate engine backfill recommendation for ${rescueWarnings.length} EMS-only station${rescueWarnings.length === 1 ? "" : "s"}`
           : `Generate backfill plan for ${vacantStations.length} vacant station${vacantStations.length === 1 ? "" : "s"}`;
     }
@@ -1984,8 +2361,12 @@ Required JSON shape:
       }
 
       const assignments = Array.isArray(result.assignments) ? result.assignments : [];
+      const assignmentTitle = result.preIncidentSuggestionMode ? "Backfill suggestions" : "Assignments";
       if (assignments.length === 0) {
-        assignmentsBox.innerHTML = `<div class="card"><strong>Assignments</strong><p class="reason">No assignments returned.</p></div>`;
+        const emptyMessage = result.preIncidentSuggestionMode
+          ? "No valid backfill suggestion was found based on the current rules and availability. User review is required."
+          : "No assignments returned.";
+        assignmentsBox.innerHTML = `<div class="card"><strong>${assignmentTitle}</strong><p class="reason">${emptyMessage}</p></div>`;
         return;
       }
 
@@ -2006,7 +2387,7 @@ Required JSON shape:
           </div>
         `;
       }).join("");
-      assignmentsBox.innerHTML = `<div class="card"><strong>Assignments</strong>${assignmentHtml}</div>`;
+      assignmentsBox.innerHTML = `<div class="card"><strong>${assignmentTitle}</strong>${assignmentHtml}</div>`;
 
       assignmentsBox.querySelectorAll(".assignment-toggle").forEach(toggle => {
         const reason = document.querySelector(`#${toggle.dataset.reasonId}`);
@@ -2041,15 +2422,20 @@ Required JSON shape:
     }
 
     async function generatePlan() {
+      preparePreIncidentSuggestionsFromForm();
       loading = true;
       error = null;
       result = null;
       render();
 
       try {
-        result = buildLocalPlan();
+        result = preIncidentMode && preIncidentStatus.size > 0 && committed.size === 0
+          ? buildPreIncidentPlanResult()
+          : buildLocalPlan();
       } catch (requestError) {
-        result = buildLocalPlan();
+        result = preIncidentMode && preIncidentStatus.size > 0 && committed.size === 0
+          ? buildPreIncidentPlanResult()
+          : buildLocalPlan();
       } finally {
         loading = false;
         render();
@@ -2086,8 +2472,17 @@ Required JSON shape:
       render();
     });
     preAddButton.addEventListener("click", applyPreIncidentStatus);
+    preSuggestButton.addEventListener("click", () => {
+      preIncidentMode = true;
+      preparePreIncidentSuggestionsFromForm();
+      preSuggestionResult = buildPreIncidentSuggestions();
+      clearResultState();
+      render();
+    });
     preClearButton.addEventListener("click", () => {
       preIncidentStatus = new Map();
+      lastPreIncidentUnit = null;
+      preSuggestionResult = null;
       preIncidentMode = false;
       clearResultState();
       render();
