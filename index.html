@@ -1695,7 +1695,10 @@
               ? `${selectedUnits.join(" or ")} selected`
               : group.suggestions.map(suggestion => suggestion.unit).join(" or ") || "No valid option";
             const optionDetails = selectedUnits.length
-              ? `<p class="reason"><strong>Selected backfill:</strong> ${escapeHtml(selectedUnits.join(" or "))} is counted at ${escapeHtml(group.destination)} for any later emergency incident.</p>`
+              ? `
+                  <p class="reason"><strong>Selected backfill:</strong> ${escapeHtml(selectedUnits.join(" or "))} is counted at ${escapeHtml(group.destination)} for any later emergency incident.</p>
+                  ${selectedUnits.map(unit => `<button class="secondary-button clear-pre-suggestion" type="button" data-pre-unit="${escapeHtml(unit)}" data-pre-station="${escapeHtml(group.stationId)}">Clear ${escapeHtml(unit)} from ${escapeHtml(group.destination)}</button>`).join("")}
+                `
               : group.suggestions.length
               ? group.suggestions.map((suggestion, index) => `
                   <p class="reason"><strong>Option ${index + 1}:</strong> ${escapeHtml(suggestion.unit)} from ${escapeHtml(suggestion.currentStation)}. ${escapeHtml(suggestion.reason)}</p>
@@ -1743,6 +1746,11 @@
       preSuggestions.querySelectorAll(".use-pre-suggestion").forEach(button => {
         button.addEventListener("click", () => {
           applyPreIncidentSuggestion(button.dataset.preUnit, button.dataset.preStation);
+        });
+      });
+      preSuggestions.querySelectorAll(".clear-pre-suggestion").forEach(button => {
+        button.addEventListener("click", () => {
+          clearPreIncidentSuggestion(button.dataset.preUnit, button.dataset.preStation);
         });
       });
     }
@@ -1805,6 +1813,11 @@
     function applyPreIncidentSuggestion(unit, stationId) {
       const station = stationById[normalizeStationId(stationId)];
       if (!unit || !station) return;
+      preIncidentStatus.forEach((record, existingUnit) => {
+        if (record.status === PRE_ASSIGNED_BACKFILL_STATUS && normalizeStationId(record.currentStation) === station.id) {
+          preIncidentStatus.delete(existingUnit);
+        }
+      });
       committed.delete(unit);
       preIncidentStatus.set(unit, {
         status: PRE_ASSIGNED_BACKFILL_STATUS,
@@ -1813,6 +1826,18 @@
         note: "Selected from pre-incident suggestion",
       });
       lastPreIncidentUnit = unit;
+      clearResultState();
+      render();
+    }
+
+    function clearPreIncidentSuggestion(unit, stationId) {
+      const station = stationById[normalizeStationId(stationId)];
+      if (!unit || !station) return;
+      const record = preIncidentStatus.get(unit);
+      if (record && record.status === PRE_ASSIGNED_BACKFILL_STATUS && normalizeStationId(record.currentStation) === station.id) {
+        preIncidentStatus.delete(unit);
+        if (lastPreIncidentUnit === unit) lastPreIncidentUnit = null;
+      }
       clearResultState();
       render();
     }
@@ -2248,7 +2273,7 @@ Required JSON shape:
         units.forEach(unit => {
           const button = document.createElement("button");
           const record = preRecord(unit);
-          const unavailable = isPreUnavailable(unit) || isPreLocked(unit);
+          const unavailable = isPreUnavailable(unit);
           button.type = "button";
           button.className = `chip${committed.has(unit) ? " committed" : ""}`;
           button.disabled = unavailable;
