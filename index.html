@@ -835,6 +835,7 @@
       "Rescue Unit Alone / No Water Coverage Warning: If R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.",
       "Rescue Alone / No Water Coverage Backfill Alert: After every selected or recommended backfill move, check whether the move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If so, display an EMS-only/no-water alert and recommend an eligible Engine backfill using the existing eligibility, boundary, battalion, Kempsville, and coverage-balance logic.",
       "Ladder 1 / Ladder 8 No-Water Coverage Protection Rule: Do not recommend E1 or E8 for backfill when moving that engine would leave L1 and L8 by themselves as the only remaining practical area coverage. L1 is a tiller and does not provide water/fire suppression coverage. Choose another eligible engine when available.",
+      "Fire Station 8 / Fire Station 1 paired water coverage rule: If E8 is not at FS08, L8 may remain at FS08 by itself without requiring backfill as long as E1 remains available in the paired area. Only require an engine backfill for the FS01/FS08 area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves. In that case, restore engine water coverage to either FS01 or FS08.",
     ];
 
     const STATION_BOUNDARIES = {
@@ -1502,6 +1503,8 @@
       return STATIONS.filter(station => {
         if (station.navy && navy) return false;
         if (assignedToStation.has(station.id)) return false;
+        if (stationCoveredByL1L8AreaRule(station.id, movedUnits)) return false;
+        if (station.id === "08" && l1L8AreaNeedsEngine(movedUnits)) return true;
         return !unitsAtStation(station.id, movedUnits).some(countsAsHomeCoverage);
       });
     }
@@ -1551,6 +1554,20 @@
       const e1AvailableAfterMove = stationHasAvailableEngine("01", remainingUnits, unit);
       const e8AvailableAfterMove = stationHasAvailableEngine("08", remainingUnits, unit);
       return l1Available && l8Available && !e1AvailableAfterMove && !e8AvailableAfterMove;
+    }
+
+    function l1L8AreaNeedsEngine(movedUnits = new Set()) {
+      return unitPresentAtStation("L1", "01", movedUnits)
+        && unitPresentAtStation("L8", "08", movedUnits)
+        && !unitPresentAtStation("E1", "01", movedUnits)
+        && !unitPresentAtStation("E8", "08", movedUnits);
+    }
+
+    function stationCoveredByL1L8AreaRule(stationId, movedUnits = new Set()) {
+      if (stationId !== "01" && stationId !== "08") return false;
+      if (l1L8AreaNeedsEngine(movedUnits)) return false;
+      if (stationId === "01") return unitPresentAtStation("L1", "01", movedUnits);
+      return unitPresentAtStation("L8", "08", movedUnits);
     }
 
     function station11HasEngineAfterMove(movingUnit = null, movedUnits = new Set()) {
@@ -1789,6 +1806,8 @@
         if (station.id === "11") {
           return !station11HasEngineAfterMove() || !station11HasLadderAfterMove();
         }
+        if (stationCoveredByL1L8AreaRule(station.id)) return false;
+        if (station.id === "08" && l1L8AreaNeedsEngine()) return true;
         return !unitsAtStation(station.id).some(countsAsHomeCoverage);
       });
     }
@@ -1854,11 +1873,46 @@
       );
     }
 
+    function stationNeedsPreIncidentSuggestion(station) {
+      if (!station) return false;
+      if (station.id === "11") {
+        return !station11HasEngineAfterMove() || !station11HasLadderAfterMove();
+      }
+      if ((station.id === "01" || station.id === "08") && l1L8AreaNeedsEngine()) {
+        return station.id === "08";
+      }
+      if (station.id === "03" && unitPresentAtStation("R1", "03") && !stationHasWaterCoverage("03")) {
+        return true;
+      }
+      if (station.id === "07" && unitPresentAtStation("R2", "07") && !unitPresentAtStation("E7", "07") && !unitPresentAtStation("L7", "07")) {
+        return true;
+      }
+      return !unitsAtStation(station.id).some(countsAsHomeCoverage);
+    }
+
     function preIncidentCoverageIssue(unit, record) {
       const home = unitHomeStation(unit);
       const current = stationById[record.currentStation] || home;
       const issueStation = record.status === "Moved Up / Covering Another Station" && home ? home : current;
       if (!issueStation) return { station: null, text: "No station could be identified for this unit problem." };
+      if ((issueStation.id === "01" || issueStation.id === "08") && (unit === "E1" || unit === "E8") && !l1L8AreaNeedsEngine()) {
+        return {
+          station: null,
+          text: `${stationLabel(issueStation)} does not require a backfill under the FS01/FS08 paired water coverage rule. L8 may remain at FS08 by itself unless both E1 and E8 are unavailable and L1 and L8 are left by themselves.`,
+        };
+      }
+      if ((issueStation.id === "01" || issueStation.id === "08") && (unit === "E1" || unit === "E8") && l1L8AreaNeedsEngine()) {
+        return {
+          station: stationById["08"],
+          text: "The FS01/FS08 paired area has L1 and L8 left by themselves with both E1 and E8 unavailable. Recommend one engine backfill to either FS01 or FS08 to restore water/fire suppression coverage.",
+        };
+      }
+      if (!stationNeedsPreIncidentSuggestion(issueStation)) {
+        return {
+          station: null,
+          text: `${stationLabel(issueStation)} still has an in-house coverage unit after ${unitDisplayName(unit)} is marked ${record.status}. No pre-incident backfill suggestion is needed unless the station loses all coverage or triggers a no-water coverage rule.`,
+        };
+      }
 
       let text = `${stationLabel(issueStation)} was checked because ${unitDisplayName(unit)} is marked ${record.status}.`;
       if (PRE_UNAVAILABLE_STATUSES.has(record.status)) {
@@ -2005,6 +2059,14 @@
         if (!allUnits.includes(unit) || TANKERS.has(unit)) return;
         const station = unitCurrentStation(unit);
         if (!station) return;
+        if ((station.id === "01" || station.id === "08") && (unit === "E1" || unit === "E8") && !l1L8AreaNeedsEngine()) {
+          noStationIssues.push(`${stationLabel(station)} does not require a backfill under the FS01/FS08 paired water coverage rule unless both E1 and E8 are unavailable and L1 and L8 are left by themselves.`);
+          return;
+        }
+        if (!stationNeedsPreIncidentSuggestion(station)) {
+          noStationIssues.push(`${stationLabel(station)} still has an in-house coverage unit after ${unitDisplayName(unit)} is selected in Step 1. No pre-incident backfill suggestion is needed.`);
+          return;
+        }
         const existing = stationIssues.get(station.id) || {
           station,
           units: [],
@@ -2424,6 +2486,7 @@ Assignment instructions:
 - If L10 is committed and L2 is available, move L2 into the Kempsville corridor only if there is no ladder already located at FS10 or FS07. If L7 is still in quarters at FS07, or L10 is still in quarters at FS10, that satisfies the corridor ladder requirement and the next FS10/FS09/FS07 backfill move should be an Engine when eligible.
 - If E16 and L16 are both available at FS16, prioritize E16 before L16 for emergency backfill. Deprioritize L16 unless E16 is unavailable, ineligible, already committed, already assigned, or a ladder is specifically required.
 - Do not assign E1 to FS13 when another eligible backfill candidate exists. FS13 is E1's furthest option; keep E1 for a more logical station.
+- FS08 does not require backfill only because E8 is out if L8 remains and E1 remains available in the paired FS01/FS08 area. Only require an engine backfill for that area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves; then restore engine water coverage to either FS01 or FS08.
 - Rescue Unit Alone / No Water Coverage Warning: if R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. Do not use a Rescue as the solution. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.
 - Rescue Alone / No Water Coverage Backfill Alert: after every selected or recommended move, check whether that move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If yes, display the EMS-only alert and recommend an eligible Engine to that station using existing emergency backfill logic. Do not recommend a Rescue as the solution.
 - If a station cannot be covered, explain why in alerts.
