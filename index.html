@@ -7,20 +7,25 @@
   <style>
     :root {
       color-scheme: light;
-      --bg: #f4f6f8;
+      --bg: #edf2f6;
       --panel: #ffffff;
-      --text: #16202a;
-      --muted: #5c6875;
-      --line: #d8dee6;
-      --line-strong: #aeb8c4;
+      --panel-soft: #f8fafc;
+      --text: #102033;
+      --muted: #667589;
+      --line: #d9e1ea;
+      --line-strong: #9dafc3;
       --danger: #b42318;
       --danger-bg: #fff1f0;
       --warning: #7a4b00;
       --warning-bg: #fff8e6;
       --success: #0f6b46;
       --success-bg: #e7f6ee;
-      --primary: #137a54;
-      --primary-dark: #0f5f42;
+      --primary: #136f63;
+      --primary-dark: #0c4f47;
+      --info: #1f5f99;
+      --info-bg: #eaf4ff;
+      --shadow: 0 14px 36px rgba(16, 32, 51, 0.10);
+      --shadow-soft: 0 8px 22px rgba(16, 32, 51, 0.07);
     }
 
     * { box-sizing: border-box; }
@@ -28,38 +33,46 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background: var(--bg);
+      background:
+        linear-gradient(180deg, #dfeaf2 0, #edf2f6 240px, #f6f8fb 100%);
       color: var(--text);
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
       font-size: 15px;
     }
 
     main {
-      max-width: 1180px;
+      max-width: 1420px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 22px;
     }
 
     header {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 18px;
       flex-wrap: wrap;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      background: linear-gradient(135deg, #102033 0%, #145b56 62%, #1b7b65 100%);
+      color: white;
+      box-shadow: var(--shadow);
     }
 
     h1 {
       margin: 0;
-      font-size: 26px;
+      font-size: 30px;
       line-height: 1.1;
       letter-spacing: 0;
     }
 
     h2 {
       margin: 0 0 12px;
-      font-size: 16px;
+      font-size: 17px;
       letter-spacing: 0;
+      color: #14283d;
     }
 
     h3 {
@@ -74,8 +87,23 @@
 
     .subhead {
       margin: 6px 0 0;
-      color: var(--muted);
+      color: rgba(255, 255, 255, 0.78);
       font-size: 14px;
+    }
+
+    .mode-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      margin-top: 10px;
+      padding: 4px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.13);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
     }
 
     .controls {
@@ -90,17 +118,17 @@
       align-items: center;
       gap: 8px;
       min-height: 38px;
-      padding: 8px 10px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 6px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 8px;
       font-weight: 700;
       color: #334252;
     }
 
     input[type="date"] {
       border: 1px solid #b9c2cc;
-      border-radius: 4px;
+      border-radius: 7px;
       padding: 6px 8px;
       font: inherit;
       color: var(--text);
@@ -110,8 +138,8 @@
     select,
     input[type="text"] {
       border: 1px solid #b9c2cc;
-      border-radius: 4px;
-      padding: 7px 8px;
+      border-radius: 7px;
+      padding: 9px 10px;
       font: inherit;
       color: var(--text);
       background: #fff;
@@ -125,25 +153,94 @@
       min-height: 38px;
       padding: 8px 12px;
       border: 1px solid var(--line-strong);
-      border-radius: 6px;
-      background: #fff;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #fff, #f5f8fb);
       color: var(--text);
       font-weight: 800;
       cursor: pointer;
+      box-shadow: 0 1px 0 rgba(16, 32, 51, 0.05);
+    }
+
+    .secondary-button:hover,
+    .assignment-toggle:hover,
+    .chip:hover {
+      border-color: var(--primary);
+    }
+
+    .ops-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      margin: 0 0 14px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(8px);
+    }
+
+    .ops-nav a {
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: #244158;
+      font-size: 13px;
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    .ops-nav a.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .dashboard-main,
+    .dashboard-side {
+      display: grid;
+      gap: 14px;
+    }
+
+    .dashboard-side {
+      position: sticky;
+      top: 72px;
     }
 
     .section {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      margin-bottom: 14px;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 0;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .section h2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #edf1f5;
     }
 
     .pre-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
       align-items: end;
       margin-top: 12px;
     }
@@ -170,9 +267,9 @@
       gap: 10px;
       flex-wrap: wrap;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 8px;
-      background: #f9fbfc;
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--panel-soft);
     }
 
     .pre-row strong { margin-right: 5px; }
@@ -185,8 +282,15 @@
 
     .unit-groups {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 12px;
+    }
+
+    .unit-groups > div {
+      border: 1px solid #e5ebf2;
+      border-radius: 10px;
+      padding: 12px;
+      background: #fbfdff;
     }
 
     .chips {
@@ -200,11 +304,12 @@
       min-height: 38px;
       padding: 9px 10px;
       border: 1px solid #9fafbf;
-      border-radius: 6px;
+      border-radius: 8px;
       background: #f9fbfc;
       color: var(--text);
       font-weight: 900;
       cursor: pointer;
+      box-shadow: 0 1px 0 rgba(16, 32, 51, 0.05);
     }
 
     .chip.committed {
@@ -218,6 +323,7 @@
       opacity: 0.55;
       cursor: not-allowed;
       text-decoration: none;
+      background: #eef1f4;
     }
 
     .stats {
@@ -229,9 +335,9 @@
 
     .stat {
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 12px;
-      background: #f9fbfc;
+      background: linear-gradient(180deg, #fff, #f7fafc);
     }
 
     .stat.danger {
@@ -263,8 +369,8 @@
       display: inline-flex;
       align-items: center;
       min-height: 30px;
-      border-radius: 6px;
-      padding: 5px 8px;
+      border-radius: 999px;
+      padding: 5px 9px;
       background: #eef2f6;
       color: #263544;
       font-size: 13px;
@@ -274,6 +380,7 @@
     .badge.danger {
       background: var(--danger-bg);
       color: #9f1d16;
+      border: 1px solid #f0aca7;
     }
 
     .badge.warning {
@@ -286,8 +393,8 @@
       width: 100%;
       min-height: 46px;
       border: 1px solid var(--primary-dark);
-      border-radius: 6px;
-      background: var(--primary);
+      border-radius: 9px;
+      background: linear-gradient(180deg, #158568, #0f6659);
       color: white;
       padding: 12px 14px;
       font-size: 16px;
@@ -314,15 +421,49 @@
 
     .card {
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 12px;
       background: #fff;
       margin-bottom: 12px;
     }
 
+    .setup-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .setup-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--panel-soft);
+    }
+
+    .setup-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .setup-message {
+      margin-top: 10px;
+      font-weight: 900;
+      color: var(--primary-dark);
+    }
+
+    .setup-meta {
+      min-height: 22px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
     .alert-card {
       border: 1px solid #f0c36b;
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 12px;
       background: var(--warning-bg);
       color: #5f3b00;
@@ -353,7 +494,7 @@
       border: 1px solid var(--danger);
       background: var(--danger);
       color: white;
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 12px;
       margin-bottom: 12px;
       font-weight: 900;
@@ -379,7 +520,7 @@
     .assignment-toggle {
       min-height: 32px;
       border: 1px solid var(--line-strong);
-      border-radius: 6px;
+      border-radius: 8px;
       background: #fff;
       color: #334252;
       padding: 5px 9px;
@@ -391,7 +532,7 @@
     .success-badge {
       display: inline-flex;
       align-items: center;
-      border-radius: 6px;
+      border-radius: 999px;
       background: var(--success-bg);
       color: var(--success);
       padding: 4px 8px;
@@ -411,6 +552,11 @@
       .control { justify-content: space-between; }
       input[type="date"] { max-width: 160px; }
     }
+
+    @media (max-width: 1050px) {
+      .dashboard-layout { grid-template-columns: 1fr; }
+      .dashboard-side { position: static; }
+    }
   </style>
 </head>
 <body>
@@ -419,6 +565,7 @@
       <div>
         <h1>VBFD backfill command tool</h1>
         <p class="subhead">Select units committed to the fire. The coverage impact updates immediately.</p>
+        <span class="mode-pill">Operations dashboard</span>
       </div>
 
       <div class="controls">
@@ -436,7 +583,61 @@
       </div>
     </header>
 
-    <section class="section" aria-label="Pre-incident status">
+    <nav class="ops-nav" aria-label="Dashboard navigation">
+      <a href="#emergency">Emergency Generator</a>
+      <a href="#pre-incident">Pre-Incident Mode</a>
+      <a href="#saved-setups">Saved Setups</a>
+      <a href="#coverage-view">Station Coverage View</a>
+      <a href="#warnings-alerts">Warnings / Alerts</a>
+      <a href="#results">Recommendations</a>
+    </nav>
+
+    <div class="dashboard-layout">
+      <div class="dashboard-main">
+
+    <section id="saved-setups" class="section" aria-label="Saved daily setup">
+      <h2>Saved daily setup</h2>
+      <div id="autosave-prompt" class="alert-card hidden">
+        <strong>Previous working setup found.</strong>
+        <p class="reason">Restore it or start fresh.</p>
+        <div class="setup-actions">
+          <button id="autosave-restore-button" class="secondary-button" type="button">Restore previous setup</button>
+          <button id="autosave-start-button" class="secondary-button" type="button">Start fresh</button>
+          <button id="autosave-clear-button" class="secondary-button" type="button">Clear autosave</button>
+        </div>
+      </div>
+      <div class="setup-grid">
+        <div class="setup-card">
+          <strong>Saved Setup 1</strong>
+          <label class="field">
+            <span>Setup name</span>
+            <input id="setup-label-1" type="text" placeholder="Day Shift Setup" />
+          </label>
+          <div id="setup-meta-1" class="setup-meta">No saved setup</div>
+          <div class="setup-actions">
+            <button class="secondary-button save-setup" type="button" data-slot="1">Save current setup</button>
+            <button class="secondary-button load-setup" type="button" data-slot="1">Load setup</button>
+            <button class="secondary-button clear-setup" type="button" data-slot="1">Clear setup</button>
+          </div>
+        </div>
+        <div class="setup-card">
+          <strong>Saved Setup 2</strong>
+          <label class="field">
+            <span>Setup name</span>
+            <input id="setup-label-2" type="text" placeholder="Training Coverage Setup" />
+          </label>
+          <div id="setup-meta-2" class="setup-meta">No saved setup</div>
+          <div class="setup-actions">
+            <button class="secondary-button save-setup" type="button" data-slot="2">Save current setup</button>
+            <button class="secondary-button load-setup" type="button" data-slot="2">Load setup</button>
+            <button class="secondary-button clear-setup" type="button" data-slot="2">Clear setup</button>
+          </div>
+        </div>
+      </div>
+      <div id="setup-message" class="setup-message"></div>
+    </section>
+
+    <section id="pre-incident" class="section" aria-label="Pre-incident status">
       <h2>Pre-incident status</h2>
       <div class="controls">
         <label class="control">
@@ -479,12 +680,16 @@
       </div>
     </section>
 
-    <section class="section" aria-label="Committed unit selector">
+    <section id="emergency" class="section" aria-label="Committed unit selector">
       <h2>Step 1: committed units</h2>
       <div id="unit-groups" class="unit-groups"></div>
     </section>
 
-    <section class="section" aria-label="Coverage impact">
+      </div>
+
+      <aside class="dashboard-side" aria-label="Operations snapshot">
+
+    <section id="coverage-view" class="section" aria-label="Coverage impact">
       <h2>Step 2: coverage impact</h2>
       <div class="stats">
         <div class="stat">
@@ -521,6 +726,19 @@
       <div id="alerts"></div>
       <div id="assignments"></div>
     </section>
+
+    <section id="warnings-alerts" class="section" aria-label="Warnings and alerts">
+      <h2>Warnings / alerts</h2>
+      <p class="reason">Active alerts appear here and in the plan results after recommendations are generated.</p>
+      <div class="badges">
+        <span class="badge warning">Caution</span>
+        <span class="badge danger">Critical</span>
+        <span class="badge">Information</span>
+      </div>
+    </section>
+
+      </aside>
+    </div>
   </main>
 
   <script>
@@ -696,6 +914,11 @@
 
     const PRE_ASSIGNED_BACKFILL_STATUS = "Assigned Pre-Incident Backfill";
     const PRE_LOCKED_STATUSES = new Set([PRE_ASSIGNED_BACKFILL_STATUS]);
+    const SAVED_SETUP_KEYS = {
+      1: "backfillGenerator_savedSetup_1",
+      2: "backfillGenerator_savedSetup_2",
+    };
+    const AUTOSAVE_KEY = "backfillGenerator_autosave";
 
     const allUnits = STATIONS.flatMap(station => station.apparatus);
     const stationById = Object.fromEntries(STATIONS.map(station => [station.id, station]));
@@ -708,6 +931,8 @@
     let loading = false;
     let result = null;
     let error = null;
+    let suppressAutosave = false;
+    let showAutosavePrompt = false;
 
     const dateInput = document.querySelector("#incident-date");
     const navyToggle = document.querySelector("#navy-toggle");
@@ -725,6 +950,17 @@
     const preStatusList = document.querySelector("#pre-status-list");
     const preWarnings = document.querySelector("#pre-warnings");
     const preSuggestions = document.querySelector("#pre-suggestions");
+    const setupLabel1 = document.querySelector("#setup-label-1");
+    const setupLabel2 = document.querySelector("#setup-label-2");
+    const setupMeta1 = document.querySelector("#setup-meta-1");
+    const setupMeta2 = document.querySelector("#setup-meta-2");
+    const setupMessage = document.querySelector("#setup-message");
+    const autosavePrompt = document.querySelector("#autosave-prompt");
+    const autosaveRestoreButton = document.querySelector("#autosave-restore-button");
+    const autosaveStartButton = document.querySelector("#autosave-start-button");
+    const autosaveClearButton = document.querySelector("#autosave-clear-button");
+    const navLinks = document.querySelectorAll(".ops-nav a");
+    const preIncidentSection = document.querySelector("#pre-incident");
     const unitGroups = document.querySelector("#unit-groups");
     const committedCount = document.querySelector("#committed-count");
     const vacantCount = document.querySelector("#vacant-count");
@@ -757,6 +993,206 @@
 
     function stationLabel(station) {
       return `FS${station.id} ${station.name}`;
+    }
+
+    function setupStorageGet(key) {
+      try {
+        if (typeof localStorage === "undefined") return null;
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (storageError) {
+        return null;
+      }
+    }
+
+    function setupStorageSet(key, value) {
+      try {
+        if (typeof localStorage === "undefined") return false;
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (storageError) {
+        setupMessage.textContent = "Setup could not be saved in this browser.";
+        return false;
+      }
+    }
+
+    function setupStorageRemove(key) {
+      try {
+        if (typeof localStorage === "undefined") return false;
+        localStorage.removeItem(key);
+        return true;
+      } catch (storageError) {
+        setupMessage.textContent = "Saved setup could not be cleared in this browser.";
+        return false;
+      }
+    }
+
+    function formatSavedAt(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+
+    function setupLabelForSlot(slot) {
+      const input = slot === "1" || slot === 1 ? setupLabel1 : setupLabel2;
+      return input ? input.value.trim() : "";
+    }
+
+    function buildSetupSnapshot(label = "") {
+      return {
+        version: 1,
+        label,
+        savedAt: new Date().toISOString(),
+        preIncidentMode,
+        preIncidentStatus: [...preIncidentStatus.entries()],
+        lastPreIncidentUnit,
+        navy,
+        incidentDate: dateInput.value,
+        committed: [...committed],
+        units: allUnits.map(unit => {
+          const home = unitHomeStation(unit);
+          const record = preIncidentStatus.get(unit);
+          return {
+            unitName: unitDisplayName(unit),
+            unit,
+            homeStation: home ? home.id : "",
+            currentStation: unitCurrentStationId(unit),
+            status: record ? record.status : "Available / In Quarters",
+            availableForBackfill: !isPreUnavailable(unit) && !isPreLocked(unit) && isBackfillEligible(unit),
+            outOfService: Boolean(record && PRE_UNAVAILABLE_STATUSES.has(record.status)),
+            alreadyBackfilling: Boolean(record && record.status === PRE_ASSIGNED_BACKFILL_STATUS),
+            lockedInCurrentStation: Boolean(record && PRE_LOCKED_STATUSES.has(record.status)),
+            reason: record ? record.note || "" : "",
+            coveringFor: record ? record.coveringFor || "" : "",
+          };
+        }),
+      };
+    }
+
+    function restoreSetupSnapshot(snapshot) {
+      if (!snapshot || !Array.isArray(snapshot.preIncidentStatus)) {
+        setupMessage.textContent = "No saved setup found.";
+        return false;
+      }
+
+      suppressAutosave = true;
+      preIncidentMode = Boolean(snapshot.preIncidentMode || snapshot.preIncidentStatus.length > 0);
+      preIncidentStatus = new Map(snapshot.preIncidentStatus);
+      lastPreIncidentUnit = snapshot.lastPreIncidentUnit || null;
+      navy = Boolean(snapshot.navy);
+      navyToggle.checked = navy;
+      dateInput.value = snapshot.incidentDate || todayString();
+      committed = new Set(Array.isArray(snapshot.committed) ? snapshot.committed : []);
+      loading = false;
+      result = null;
+      error = null;
+      preSuggestionResult = null;
+      suppressAutosave = false;
+      showAutosavePrompt = false;
+      autosaveCurrentSetup();
+      render();
+      return true;
+    }
+
+    function saveSetupSlot(slot) {
+      preparePreIncidentSuggestionsFromForm();
+      const key = SAVED_SETUP_KEYS[slot];
+      const label = setupLabelForSlot(slot);
+      if (!key) return;
+      if (setupStorageSet(key, buildSetupSnapshot(label))) {
+        setupMessage.textContent = `Saved Setup ${slot} saved successfully.`;
+        renderSavedSetupControls();
+      }
+    }
+
+    function loadSetupSlot(slot) {
+      const key = SAVED_SETUP_KEYS[slot];
+      const snapshot = key ? setupStorageGet(key) : null;
+      if (restoreSetupSnapshot(snapshot)) {
+        setupMessage.textContent = `Saved Setup ${slot} loaded successfully.`;
+      }
+    }
+
+    function clearSetupSlot(slot) {
+      const key = SAVED_SETUP_KEYS[slot];
+      if (!key) return;
+      if (setupStorageRemove(key)) {
+        setupMessage.textContent = `Saved Setup ${slot} cleared.`;
+        renderSavedSetupControls();
+      }
+    }
+
+    function autosaveCurrentSetup() {
+      if (suppressAutosave) return;
+      setupStorageSet(AUTOSAVE_KEY, buildSetupSnapshot("Autosave"));
+      renderAutosavePrompt();
+    }
+
+    function renderAutosavePrompt() {
+      const snapshot = setupStorageGet(AUTOSAVE_KEY);
+      autosavePrompt.classList.toggle("hidden", !showAutosavePrompt || !snapshot);
+    }
+
+    function renderSavedSetupControls() {
+      [
+        { slot: 1, input: setupLabel1, meta: setupMeta1 },
+        { slot: 2, input: setupLabel2, meta: setupMeta2 },
+      ].forEach(({ slot, input, meta }) => {
+        const snapshot = setupStorageGet(SAVED_SETUP_KEYS[slot]);
+        if (!snapshot) {
+          meta.textContent = "No saved setup";
+          return;
+        }
+        if (input && snapshot.label && !input.value) input.value = snapshot.label;
+        const label = snapshot.label ? `${snapshot.label} - ` : "";
+        meta.textContent = `Last Saved: ${label}${formatSavedAt(snapshot.savedAt) || "saved"}`;
+      });
+      renderAutosavePrompt();
+    }
+
+    function setActiveNav(targetHash = window.location.hash || "#emergency") {
+      const fallbackHash = targetHash || "#emergency";
+      navLinks.forEach(link => {
+        link.classList.toggle("active", link.getAttribute("href") === fallbackHash);
+      });
+    }
+
+    function handleNavSelection(event) {
+      const link = event.currentTarget;
+      const targetHash = link.getAttribute("href");
+      if (!targetHash || !targetHash.startsWith("#")) return;
+      event.preventDefault();
+
+      if (targetHash === "#pre-incident") {
+        preIncidentMode = true;
+        clearResultState();
+      }
+
+      history.replaceState(null, "", `${window.location.href.split("#")[0]}${targetHash}`);
+      setActiveNav(targetHash);
+      render();
+
+      const target = document.querySelector(targetHash);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    function isPreIncidentTabActive() {
+      return window.location.hash === "#pre-incident";
+    }
+
+    function renderTabVisibility() {
+      const activeHash = window.location.hash || "#emergency";
+      if (preIncidentSection) {
+        preIncidentSection.classList.toggle("hidden", activeHash !== "#pre-incident");
+      }
     }
 
     function stationCoveragePercent(vacantCount) {
@@ -1478,21 +1914,6 @@
 
     function buildPreIncidentSuggestionGroup(station, problemUnits, coverageText) {
       const selectedUnits = selectedPreIncidentBackfillsForStation(station.id);
-      if (selectedUnits.length > 0) {
-        return {
-          stationId: station.id,
-          destination: stationLabel(station),
-          unitProblem: problemUnits.map(unit => {
-            const record = preIncidentStatus.get(unit);
-            return `${unitDisplayName(unit)}: ${record.status}${record.note ? ` - ${record.note}` : ""}`;
-          }).join("; "),
-          coverageIssue: `${coverageText} ${selectedUnits.join(" or ")} has already been selected to backfill ${stationLabel(station)} and is counted there for later emergency incidents.`,
-          suggestions: [],
-          selectedUnits,
-          preferred: `${selectedUnits.join(" or ")} is already selected as the pre-incident backfill for ${stationLabel(station)}.`,
-        };
-      }
-
       const remainingUnits = new Set(getAvailableUnits());
       let primaryPredicate = isEngine;
       const hasLadderProblem = problemUnits.some(unit => isRegularLadder(unit) || TILLERS.has(unit));
@@ -1528,23 +1949,30 @@
       } else if (suggestions.length > 1) {
         preferred = `${suggestions[0].unit} appears to be the stronger suggestion for ${stationLabel(station)} because it ranked highest under the existing boundary, battalion proximity, coverage balance, and apparatus rules.`;
       }
+      if (selectedUnits.length > 0 && suggestions.length > 0) {
+        preferred = `${selectedUnits.join(" or ")} is currently selected as the pre-incident backfill for ${stationLabel(station)}. ${preferred}`;
+      }
 
       return {
         stationId: station.id,
         destination: stationLabel(station),
         unitProblem: problemUnits.map(unit => {
           const record = preIncidentStatus.get(unit);
-          return `${unitDisplayName(unit)}: ${record.status}${record.note ? ` - ${record.note}` : ""}`;
+          return record
+            ? `${unitDisplayName(unit)}: ${record.status}${record.note ? ` - ${record.note}` : ""}`
+            : `${unitDisplayName(unit)} selected in Step 1`;
         }).join("; "),
-        coverageIssue: coverageText,
+        coverageIssue: selectedUnits.length > 0
+          ? `${coverageText} ${selectedUnits.join(" or ")} has already been selected to backfill ${stationLabel(station)} and is counted there for later emergency incidents.`
+          : coverageText,
         suggestions,
-        selectedUnits: [],
+        selectedUnits,
         preferred,
       };
     }
 
     function buildPreIncidentSuggestions() {
-      if (!preIncidentMode || preIncidentStatus.size === 0) {
+      if (!preIncidentMode || (preIncidentStatus.size === 0 && committed.size === 0)) {
         return {
           unitProblem: "No pre-incident unit problem entered.",
           coverageIssue: "Enter a unit problem first, then generate pre-incident suggestions.",
@@ -1573,6 +2001,20 @@
         stationIssues.set(issue.station.id, existing);
       });
 
+      [...committed].forEach(unit => {
+        if (!allUnits.includes(unit) || TANKERS.has(unit)) return;
+        const station = unitCurrentStation(unit);
+        if (!station) return;
+        const existing = stationIssues.get(station.id) || {
+          station,
+          units: [],
+          texts: [],
+        };
+        existing.units.push(unit);
+        existing.texts.push(`${stationLabel(station)} has a pre-incident coverage issue because ${unitDisplayName(unit)} is selected in Step 1. The system should provide two backfill suggestions for planning review when possible.`);
+        stationIssues.set(station.id, existing);
+      });
+
       const suggestionGroups = [...stationIssues.values()].map(issue => buildPreIncidentSuggestionGroup(
         issue.station,
         issue.units,
@@ -1582,9 +2024,13 @@
         ...suggestion,
         groupDestination: group.destination,
       })));
-      const unitProblem = [...preIncidentStatus.entries()].map(([unit, record]) =>
+      const statusProblems = [...preIncidentStatus.entries()].map(([unit, record]) =>
         `${unitDisplayName(unit)}: ${record.status}${record.note ? ` - ${record.note}` : ""}`
-      ).join("; ");
+      );
+      const selectedProblems = [...committed]
+        .filter(unit => allUnits.includes(unit) && !TANKERS.has(unit))
+        .map(unit => `${unitDisplayName(unit)} selected in Step 1`);
+      const unitProblem = [...statusProblems, ...selectedProblems].join("; ");
       const coverageIssue = [
         ...suggestionGroups.map(group => `${group.destination}: ${group.coverageIssue}`),
         ...noStationIssues,
@@ -1625,17 +2071,15 @@
 
       return {
         assignments: suggestionGroups.map(group => ({
-          unit: group.selectedUnits && group.selectedUnits.length
-            ? `${group.selectedUnits.join(" or ")} selected`
-            : group.suggestions.map(suggestion => suggestion.unit).join(" or ") || "No valid option",
+          unit: group.suggestions.map(suggestion => suggestion.unit).join(" or ") || "No valid option",
           toStation: group.stationId,
-          reason: group.selectedUnits && group.selectedUnits.length
-            ? `${group.selectedUnits.join(" or ")} has already been selected as the pre-incident backfill for ${group.destination}. The emergency generator will count that unit at ${group.destination} and will not recommend moving it again.`
-            : group.suggestions.length
+          reason: `${group.selectedUnits && group.selectedUnits.length
+            ? `${group.selectedUnits.join(" or ")} is currently selected as the pre-incident backfill for ${group.destination}. `
+            : ""}${group.suggestions.length
             ? group.suggestions.map((suggestion, index) => (
               `Option ${index + 1}: ${suggestion.unit}. ${suggestion.reason} Warning flags: ${suggestion.warningFlags.join(" ")}`
             )).join(" ")
-            : "No valid backfill suggestion was found based on the current rules and availability. User review is required.",
+            : "No valid backfill suggestion was found based on the current rules and availability. User review is required."}`,
         })),
         alerts,
         mutualAid: {
@@ -1697,15 +2141,14 @@
       const suggestionHtml = suggestionGroups.length
         ? suggestionGroups.map((group, groupIndex) => {
             const selectedUnits = group.selectedUnits || [];
-            const unitText = selectedUnits.length
-              ? `${selectedUnits.join(" or ")} selected`
-              : group.suggestions.map(suggestion => suggestion.unit).join(" or ") || "No valid option";
-            const optionDetails = selectedUnits.length
+            const unitText = group.suggestions.map(suggestion => suggestion.unit).join(" or ") || "No valid option";
+            const selectedDetails = selectedUnits.length
               ? `
-                  <p class="reason"><strong>Selected backfill:</strong> ${escapeHtml(selectedUnits.join(" or "))} is counted at ${escapeHtml(group.destination)} for any later emergency incident.</p>
+                  <p class="reason"><strong>Current selected backfill:</strong> ${escapeHtml(selectedUnits.join(" or "))} is counted at ${escapeHtml(group.destination)} for any later emergency incident.</p>
                   ${selectedUnits.map(unit => `<button class="secondary-button clear-pre-suggestion" type="button" data-pre-unit="${escapeHtml(unit)}" data-pre-station="${escapeHtml(group.stationId)}">Clear ${escapeHtml(unit)} from ${escapeHtml(group.destination)}</button>`).join("")}
                 `
-              : group.suggestions.length
+              : "";
+            const optionDetails = group.suggestions.length
               ? group.suggestions.map((suggestion, index) => `
                   <p class="reason"><strong>Option ${index + 1}:</strong> ${escapeHtml(suggestion.unit)} from ${escapeHtml(suggestion.currentStation)}. ${escapeHtml(suggestion.reason)}</p>
                   <p class="reason"><strong>Warning flags:</strong> ${escapeHtml(suggestion.warningFlags.join(" "))}</p>
@@ -1719,6 +2162,7 @@
                 </div>
                 <p class="reason"><strong>Unit problem:</strong> ${escapeHtml(group.unitProblem)}</p>
                 <p class="reason"><strong>Coverage issue:</strong> ${escapeHtml(group.coverageIssue)}</p>
+                ${selectedDetails}
                 ${optionDetails}
                 <p class="reason"><strong>Preferred suggestion:</strong> ${escapeHtml(group.preferred)}</p>
               </div>
@@ -1785,6 +2229,21 @@
       } else {
         preIncidentStatus.set(unit, { status, currentStation, coveringFor, note });
         lastPreIncidentUnit = unit;
+
+        if (PRE_UNAVAILABLE_STATUSES.has(status) && coveringFor && coveringFor !== unit && unitHomeStation(coveringFor)) {
+          const problemStation = home ? home.id : currentStation;
+          preIncidentStatus.forEach((record, existingUnit) => {
+            if (existingUnit !== coveringFor && record.status === PRE_ASSIGNED_BACKFILL_STATUS && normalizeStationId(record.currentStation) === problemStation) {
+              preIncidentStatus.delete(existingUnit);
+            }
+          });
+          preIncidentStatus.set(coveringFor, {
+            status: PRE_ASSIGNED_BACKFILL_STATUS,
+            currentStation: problemStation,
+            coveringFor: `FS${problemStation}`,
+            note: "",
+          });
+        }
       }
 
       preSuggestionResult = null;
@@ -1795,6 +2254,7 @@
         preNote.value = "";
       }
       clearResultState();
+      autosaveCurrentSetup();
     }
 
     function applyPreIncidentStatus() {
@@ -1833,6 +2293,7 @@
       });
       lastPreIncidentUnit = unit;
       clearResultState();
+      autosaveCurrentSetup();
       render();
     }
 
@@ -1845,6 +2306,7 @@
         if (lastPreIncidentUnit === unit) lastPreIncidentUnit = null;
       }
       clearResultState();
+      autosaveCurrentSetup();
       render();
     }
 
@@ -2301,7 +2763,7 @@ Required JSON shape:
       const vacantStations = getVacantStations();
       const availableUnits = getAvailableUnits();
       const rescueWarnings = rescueAloneNoWaterWarnings();
-      const preSuggestionReady = preIncidentMode && preIncidentStatus.size > 0 && committed.size === 0;
+      const preSuggestionReady = preIncidentMode && isPreIncidentTabActive() && (preIncidentStatus.size > 0 || committed.size > 0);
       const needsPlan = vacantStations.length > 0 || rescueWarnings.length > 0 || preSuggestionReady;
 
       committedCount.textContent = committed.size;
@@ -2433,6 +2895,8 @@ Required JSON shape:
     }
 
     function render() {
+      renderTabVisibility();
+      renderSavedSetupControls();
       renderPreIncidentStatus();
       renderUnitGroups();
       renderImpact();
@@ -2449,6 +2913,7 @@ Required JSON shape:
         committed.add(unit);
         if (TANKER_PAIRS[unit]) committed.add(TANKER_PAIRS[unit]);
       }
+      autosaveCurrentSetup();
       render();
     }
 
@@ -2460,11 +2925,11 @@ Required JSON shape:
       render();
 
       try {
-        result = preIncidentMode && preIncidentStatus.size > 0 && committed.size === 0
+        result = preIncidentMode && isPreIncidentTabActive() && (preIncidentStatus.size > 0 || committed.size > 0)
           ? buildPreIncidentPlanResult()
           : buildLocalPlan();
       } catch (requestError) {
-        result = preIncidentMode && preIncidentStatus.size > 0 && committed.size === 0
+        result = preIncidentMode && isPreIncidentTabActive() && (preIncidentStatus.size > 0 || committed.size > 0)
           ? buildPreIncidentPlanResult()
           : buildLocalPlan();
       } finally {
@@ -2475,12 +2940,22 @@ Required JSON shape:
 
     function reset() {
       committed = new Set();
+      preIncidentMode = false;
+      preIncidentStatus = new Map();
+      lastPreIncidentUnit = null;
+      preSuggestionResult = null;
       navy = false;
       loading = false;
       result = null;
       error = null;
       dateInput.value = todayString();
       navyToggle.checked = false;
+      resetPreIncidentForm();
+      setupStorageRemove(AUTOSAVE_KEY);
+      showAutosavePrompt = false;
+      setupMessage.textContent = "Screen reset to starting position.";
+      history.replaceState(null, "", `${window.location.href.split("#")[0]}#emergency`);
+      setActiveNav("#emergency");
       render();
     }
 
@@ -2495,11 +2970,13 @@ Required JSON shape:
     preNormal.addEventListener("change", () => {
       preIncidentMode = false;
       clearResultState();
+      autosaveCurrentSetup();
       render();
     });
     preCustom.addEventListener("change", () => {
       preIncidentMode = true;
       clearResultState();
+      autosaveCurrentSetup();
       render();
     });
     preAddButton.addEventListener("click", applyPreIncidentStatus);
@@ -2516,19 +2993,75 @@ Required JSON shape:
       preSuggestionResult = null;
       preIncidentMode = false;
       clearResultState();
+      autosaveCurrentSetup();
       render();
     });
     navyToggle.addEventListener("change", event => {
       navy = event.target.checked;
       clearResultState();
+      autosaveCurrentSetup();
       render();
     });
     dateInput.addEventListener("change", () => {
       clearResultState();
+      autosaveCurrentSetup();
       render();
+    });
+    document.querySelectorAll(".save-setup").forEach(button => {
+      button.addEventListener("click", () => saveSetupSlot(button.dataset.slot));
+    });
+    document.querySelectorAll(".load-setup").forEach(button => {
+      button.addEventListener("click", () => loadSetupSlot(button.dataset.slot));
+    });
+    document.querySelectorAll(".clear-setup").forEach(button => {
+      button.addEventListener("click", () => clearSetupSlot(button.dataset.slot));
+    });
+    navLinks.forEach(link => {
+      link.addEventListener("click", handleNavSelection);
+    });
+    window.addEventListener("hashchange", () => {
+      if (window.location.hash === "#pre-incident") {
+        preIncidentMode = true;
+      }
+      setActiveNav(window.location.hash || "#emergency");
+      render();
+    });
+    autosaveRestoreButton.addEventListener("click", () => {
+      const snapshot = setupStorageGet(AUTOSAVE_KEY);
+      if (restoreSetupSnapshot(snapshot)) {
+        showAutosavePrompt = false;
+        setupMessage.textContent = "Previous working setup restored.";
+      }
+    });
+    autosaveStartButton.addEventListener("click", () => {
+      setupStorageRemove(AUTOSAVE_KEY);
+      showAutosavePrompt = false;
+      preIncidentMode = false;
+      preIncidentStatus = new Map();
+      lastPreIncidentUnit = null;
+      preSuggestionResult = null;
+      committed = new Set();
+      navy = false;
+      navyToggle.checked = false;
+      dateInput.value = todayString();
+      clearResultState();
+      setupMessage.textContent = "Started fresh.";
+      render();
+    });
+    autosaveClearButton.addEventListener("click", () => {
+      if (setupStorageRemove(AUTOSAVE_KEY)) {
+        showAutosavePrompt = false;
+        setupMessage.textContent = "Autosave cleared.";
+        renderSavedSetupControls();
+      }
     });
     resetButton.addEventListener("click", reset);
     generateButton.addEventListener("click", generatePlan);
+    showAutosavePrompt = Boolean(setupStorageGet(AUTOSAVE_KEY));
+    if (window.location.hash === "#pre-incident") {
+      preIncidentMode = true;
+    }
+    setActiveNav(window.location.hash || "#emergency");
     render();
   </script>
 </body>
