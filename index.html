@@ -832,6 +832,7 @@
       "Station 1 to Station 13 Distance Safeguard: FS13 is the furthest backfill option for E1. Do not assign E1 to FS13 when another eligible backfill candidate exists. Use E1 for a more logical station instead.",
       "Engine Backfill Priority by Battalion: After mandatory eligibility, coverage protection, battalion proximity, Kempsville corridor, seasonal, and other policy rules identify valid Engine candidates, use battalion-specific Engine priority as a ranking layer only. Battalion 1 remains location-based with no fixed priority. Battalion 2 priority is E22, E2, E1, with E1 favored for Battalion 1-related coverage and E22 favored for non-Battalion 1 coverage. Battalion 3 prioritizes E16. Battalion 4 prioritizes E21. Battalion 5 prioritizes E7 before E10.",
       "Station Boundary Proximity Rule: After policy-compliant units are identified, prioritize units from listed boundary stations before farther stations unless another stronger operational rule applies. Treat FS10 and FS22 as boundary stations only because of highway quick access. Do not use FS14 because Station 14 does not exist.",
+      "Station-to-station mileage preference: After mandatory exclusions and policy rules identify eligible candidates, use the FR 401 Appendix A mileage chart as an additional ranking layer from the unit's current station to the vacancy station. Prefer the closest valid unit when candidates are otherwise valid. Station 22 is not included in the mileage chart, so Station 22-related moves continue to use station boundary, map proximity, and battalion logic.",
       "Rescue Unit Alone / No Water Coverage Warning: If R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.",
       "Rescue Alone / No Water Coverage Backfill Alert: After every selected or recommended backfill move, check whether the move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If so, display an EMS-only/no-water alert and recommend an eligible Engine backfill using the existing eligibility, boundary, battalion, Kempsville, and coverage-balance logic.",
       "Ladder 1 / Ladder 8 No-Water Coverage Protection Rule: Do not recommend E1 or E8 for backfill when moving that engine would leave L1 and L8 by themselves as the only remaining practical area coverage. L1 is a tiller and does not provide water/fire suppression coverage. Choose another eligible engine when available.",
@@ -872,9 +873,32 @@
       "01": ["15", "04", "20"],
       "02": ["07", "22", "04", "20"],
       "05": ["21", "16", "18", "17", "06"],
+      "08": ["16", "22", "21", "20", "03"],
       "10": ["22", "07", "09", "18", "19"],
       "13": ["17", "06", "21", "18", "16"],
       "19": ["21", "18", "10", "09"],
+    };
+
+    const STATION_MILEAGE = {
+      "01": {"01":0,"02":6.4,"03":7.8,"04":3.4,"05":13.9,"06":24.6,"07":9.1,"08":4.6,"09":1.06,"10":14.6,"11":7.8,"12":9.0,"13":26.7,"16":9.3,"17":18.6,"18":10.9,"19":13.8,"20":9.7,"21":12.6},
+      "02": {"01":6.4,"02":0,"03":9.1,"04":3.2,"05":10.8,"06":23.3,"07":3.2,"08":10.0,"09":4.4,"10":6.9,"11":12.3,"12":14.6,"13":22.8,"16":5.5,"17":19.0,"18":6.8,"19":7.5,"20":6.7,"21":12.3},
+      "03": {"01":7.8,"02":9.1,"03":0,"04":11.2,"05":8.7,"06":18.8,"07":6.9,"08":4.7,"09":7.4,"10":8.9,"11":5.7,"12":8.1,"13":19.2,"16":3.7,"17":12.6,"18":3.3,"19":6.2,"20":4.7,"21":6.6},
+      "04": {"01":3.4,"02":3.2,"03":11.2,"04":0,"05":13.3,"06":25.7,"07":5.6,"08":8.3,"09":6.8,"10":10.7,"11":11.1,"12":14.5,"13":25.2,"16":8.6,"17":21.4,"18":9.2,"19":9.9,"20":9.1,"21":14.7},
+      "05": {"01":13.9,"02":10.8,"03":8.7,"04":13.3,"05":0,"06":12.6,"07":9.3,"08":10.8,"09":8.0,"10":9.0,"11":9.5,"12":6.5,"13":14.5,"16":6.6,"17":8.6,"18":4.6,"19":6.3,"20":9.3,"21":2.5},
+      "06": {"01":24.6,"02":23.3,"03":18.8,"04":25.7,"05":12.6,"06":0,"07":21.7,"08":20.9,"09":20.3,"10":21.3,"11":19.1,"12":16.1,"13":5.9,"16":18.9,"17":14.4,"18":17.0,"19":18.4,"20":21.7,"21":12.8},
+      "07": {"01":9.1,"02":3.2,"03":6.9,"04":5.6,"05":9.3,"06":21.7,"07":0,"08":8.4,"09":2.3,"10":4.8,"11":9.3,"12":12.2,"13":20.4,"16":3.5,"17":16.6,"18":4.4,"19":5.0,"20":4.7,"21":9.9},
+      "08": {"01":4.6,"02":10.0,"03":4.7,"04":8.3,"05":10.8,"06":20.9,"07":8.4,"08":0,"09":10.0,"10":11.8,"11":4.1,"12":6.6,"13":23.5,"16":6.0,"17":14.9,"18":7.9,"19":10.7,"20":6.6,"21":9.0},
+      "09": {"01":1.06,"02":4.4,"03":7.4,"04":6.8,"05":8.0,"06":20.3,"07":2.3,"08":10.0,"09":0,"10":2.6,"11":10.7,"12":14.0,"13":19.3,"16":4.6,"17":16.5,"18":4.5,"19":3.9,"20":6.7,"21":9.9},
+      "10": {"01":14.6,"02":6.9,"03":8.9,"04":10.7,"05":9.0,"06":21.3,"07":4.8,"08":11.8,"09":2.6,"10":0,"11":13.6,"12":13.8,"13":19.4,"16":6.2,"17":17.4,"18":5.4,"19":3.6,"20":8.9,"21":10.7},
+      "11": {"01":7.8,"02":12.3,"03":5.7,"04":11.1,"05":9.5,"06":19.1,"07":9.3,"08":4.1,"09":10.7,"10":13.6,"11":0,"12":3.4,"13":22.7,"16":6.9,"17":13.1,"18":8.9,"19":11.9,"20":7.6,"21":7.2},
+      "12": {"01":9.0,"02":14.6,"03":8.1,"04":14.5,"05":6.5,"06":16.1,"07":12.2,"08":6.6,"09":14.0,"10":13.8,"11":3.4,"12":0,"13":20.6,"16":8.0,"17":11.1,"18":9.6,"19":12.1,"20":8.8,"21":5.2},
+      "13": {"01":26.7,"02":22.8,"03":19.2,"04":25.2,"05":14.5,"06":5.9,"07":20.4,"08":23.5,"09":19.3,"10":19.4,"11":22.7,"12":20.6,"13":0,"16":19.6,"17":18.0,"18":16.6,"19":17.1,"20":22.1,"21":16.3},
+      "16": {"01":9.3,"02":5.5,"03":3.7,"04":8.6,"05":6.6,"06":18.9,"07":3.5,"08":6.0,"09":4.6,"10":6.2,"11":6.9,"12":8.0,"13":19.6,"16":0,"17":14.3,"18":2.8,"19":4.5,"20":2.9,"21":7.6},
+      "17": {"01":18.6,"02":19.0,"03":12.6,"04":21.4,"05":8.6,"06":14.4,"07":16.6,"08":14.9,"09":16.5,"10":17.4,"11":13.1,"12":11.1,"13":18.0,"16":14.3,"17":0,"18":13.2,"19":15.0,"20":17.1,"21":6.8},
+      "18": {"01":10.9,"02":6.8,"03":3.3,"04":9.2,"05":4.6,"06":17.0,"07":4.4,"08":7.9,"09":4.5,"10":5.4,"11":8.9,"12":9.6,"13":16.6,"16":2.8,"17":13.2,"18":0,"19":3.0,"20":5.5,"21":6.4},
+      "19": {"01":13.8,"02":7.5,"03":6.2,"04":9.9,"05":6.3,"06":18.4,"07":5.0,"08":10.7,"09":3.9,"10":3.6,"11":11.9,"12":12.1,"13":17.1,"16":4.5,"17":15.0,"18":3.0,"19":0,"20":8.4,"21":8.2},
+      "20": {"01":9.7,"02":6.7,"03":4.7,"04":9.1,"05":9.3,"06":21.7,"07":4.7,"08":6.6,"09":6.7,"10":8.9,"11":7.6,"12":8.8,"13":22.1,"16":2.9,"17":17.1,"18":5.5,"19":8.4,"20":0,"21":11.1},
+      "21": {"01":12.6,"02":12.3,"03":6.6,"04":14.7,"05":2.5,"06":12.8,"07":9.9,"08":9.0,"09":9.9,"10":10.7,"11":7.2,"12":5.2,"13":16.3,"16":7.6,"17":6.8,"18":6.4,"19":8.2,"20":11.1,"21":0}
     };
 
     const BATTALION_BY_STATION = {
@@ -1599,6 +1623,32 @@
       return 100;
     }
 
+    function stationMileage(fromStationId, toStationId) {
+      const from = normalizeStationId(fromStationId);
+      const to = normalizeStationId(toStationId);
+      const row = STATION_MILEAGE[from];
+      if (!row || typeof row[to] !== "number") return null;
+      return row[to];
+    }
+
+    function unitMileageToStation(unit, toStationId) {
+      const home = unitCurrentStation(unit);
+      if (!home) return null;
+      return stationMileage(home.id, toStationId);
+    }
+
+    function mileageCompare(a, b, toStationId) {
+      const mileageA = unitMileageToStation(a, toStationId);
+      const mileageB = unitMileageToStation(b, toStationId);
+      if (typeof mileageA !== "number" || typeof mileageB !== "number") return 0;
+      return mileageA - mileageB;
+    }
+
+    function mileageSelectionNote(unit, station) {
+      if (typeof unitMileageToStation(unit, station.id) !== "number") return "";
+      return "Mileage preference: this unit was selected from current station location as one of the closest valid options based on the station-to-station mileage chart.";
+    }
+
     function stationBoundaryRank(toStationId, fromStationId) {
       const boundaries = STATION_BOUNDARIES[toStationId] || [];
       if (toStationId === fromStationId) return 0;
@@ -1721,7 +1771,7 @@
     }
 
     function assignmentNotes(unit, station) {
-      return [stationBoundarySelectionNote(unit, station), battalionSelectionNote(unit, station), engineBackfillPriorityNote(unit, station)]
+      return [mileageSelectionNote(unit, station), stationBoundarySelectionNote(unit, station), battalionSelectionNote(unit, station), engineBackfillPriorityNote(unit, station)]
         .filter(Boolean)
         .join(" ");
     }
@@ -1753,6 +1803,7 @@
           const homeA = unitCurrentStation(a);
           const homeB = unitCurrentStation(b);
           return ladderBackfillOrder(a) - ladderBackfillOrder(b)
+            || mileageCompare(a, b, station.id)
             || mapProximityRank(station.id, homeA ? homeA.id : "") - mapProximityRank(station.id, homeB ? homeB.id : "")
             || a.localeCompare(b, undefined, { numeric: true });
         })[0];
@@ -1787,6 +1838,7 @@
         const ladderB = ladderOrder[b] || 20;
 
         return seasonalA - seasonalB
+          || mileageCompare(a, b, toStationId)
           || proximityA - proximityB
           || boundaryScoreA - boundaryScoreB
           || boundaryRankA - boundaryRankB
@@ -1960,6 +2012,14 @@
         return [...candidates].sort((a, b) => {
           const rankA = Object.prototype.hasOwnProperty.call(fs05Order, a) ? fs05Order[a] : 20;
           const rankB = Object.prototype.hasOwnProperty.call(fs05Order, b) ? fs05Order[b] : 20;
+          return rankA - rankB || candidates.indexOf(a) - candidates.indexOf(b);
+        });
+      }
+      if (station.id === "08") {
+        const fs08Order = { E16: 0, E22: 1, E21: 2 };
+        return [...candidates].sort((a, b) => {
+          const rankA = Object.prototype.hasOwnProperty.call(fs08Order, a) ? fs08Order[a] : 20;
+          const rankB = Object.prototype.hasOwnProperty.call(fs08Order, b) ? fs08Order[b] : 20;
           return rankA - rankB || candidates.indexOf(a) - candidates.indexOf(b);
         });
       }
@@ -2220,7 +2280,7 @@
             return `
               <div class="assignment">
                 <div class="assignment-heading">
-                  <div><span class="success-badge">${escapeHtml(unitText)}</span><strong>to ${escapeHtml(group.destination)}</strong></div>
+                  <div><span class="success-badge">${escapeHtml(unitText)}</span> <strong>to ${escapeHtml(group.destination)}</strong></div>
                 </div>
                 <p class="reason"><strong>Unit problem:</strong> ${escapeHtml(group.unitProblem)}</p>
                 <p class="reason"><strong>Coverage issue:</strong> ${escapeHtml(group.coverageIssue)}</p>
@@ -2441,6 +2501,9 @@ ${JSON.stringify(STATION_BOUNDARIES, null, 2)}
 Special boundary notes:
 ${JSON.stringify(SPECIAL_BOUNDARY_NOTES, null, 2)}
 
+Station-to-station mileage chart, use current station location as the starting point:
+${JSON.stringify(STATION_MILEAGE, null, 2)}
+
 Adjacency map, based on shared station response area boundaries:
 ${JSON.stringify(ADJACENCY, null, 2)}
 
@@ -2481,6 +2544,7 @@ Assignment instructions:
 - Battalion Proximity and Coverage Balance Rule: after eligible candidates are identified, rank by battalion proximity and coverage balance. Penalize non-listed battalions, the last available unit in a battalion, and moves that leave a battalion poorly covered. Use this only as a ranking layer among eligible options.
 - Engine Backfill Priority by Battalion: apply only after mandatory eligibility, coverage protection, battalion proximity, Kempsville corridor, seasonal, and policy rules. Battalion 1 stays location-based with no fixed Engine order. Battalion 2 Engine order is E22, E2, E1; E1 may receive a Battalion 1 proximity advantage, and E22 is favored for non-Battalion 1 coverage. Battalion 3 prioritizes E16, Battalion 4 prioritizes E21, and Battalion 5 prioritizes E7 before E10.
 - Station Boundary Proximity Rule: after eligible candidates are identified, rank candidates from listed boundary stations ahead of farther stations unless a stronger operational rule applies. Do not use Station 14. Treat FS10 and FS22 as boundary stations only because of highway quick access / west-side highway access, and explain that note when that relationship affects a move.
+- Station-to-station mileage preference: after hard exclusions and policy rules identify eligible candidates, prefer the closest valid unit based on station-to-station mileage from the unit's current station to the vacancy station. Mileage does not override mandatory rules. Station 22 is not in the mileage chart, so continue using boundary, map proximity, and battalion logic for Station 22-related moves.
 - If E10 is committed, do not recommend L10 to backfill FS09. Keep L10 at FS10 for Kempsville corridor coverage.
 - If a ladder is already located at FS10, FS09, or FS07, the Kempsville corridor has ladder coverage. For FS10/FS09/FS07 backfill needs, prioritize an eligible Engine before moving another Ladder into that corridor unless another mandatory rule requires the Ladder.
 - If L10 is committed and L2 is available, move L2 into the Kempsville corridor only if there is no ladder already located at FS10 or FS07. If L7 is still in quarters at FS07, or L10 is still in quarters at FS10, that satisfies the corridor ladder requirement and the next FS10/FS09/FS07 backfill move should be an Engine when eligible.
