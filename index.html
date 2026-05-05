@@ -838,7 +838,7 @@
       "Rescue Alone / No Water Coverage Backfill Alert: After every selected or recommended backfill move, check whether the move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If so, display an EMS-only/no-water alert and recommend an eligible Engine backfill using the existing eligibility, boundary, battalion, Kempsville, and coverage-balance logic.",
       "Fire Station 7 Rescue 2 source protection: Do not recommend moving E7 or L7 for backfill if that move would leave R2 alone at FS07. If both E7 and L7 are out of quarters and R2 remains at FS07, recommend an engine backfill to FS07.",
       "Ladder 1 / Ladder 8 No-Water Coverage Protection Rule: Do not recommend E1 or E8 for backfill when moving that engine would leave L1 and L8 by themselves as the only remaining practical area coverage. L1 is a tiller and does not provide water/fire suppression coverage. Choose another eligible engine when available.",
-      "Fire Station 8 / Fire Station 1 paired water coverage rule: If E8 is not at FS08, L8 may remain at FS08 by itself without requiring backfill as long as E1 remains available in the paired area. Only require an engine backfill for the FS01/FS08 area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves. In that case, restore engine water coverage to either FS01 or FS08.",
+      "Fire Station 8 / Fire Station 1 paired water coverage rule: If E8 is not at FS08, L8 may remain at FS08 by itself without requiring backfill as long as E1 remains available in the paired area. Only require an engine backfill for the FS01/FS08 area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves. In that case, restore engine water coverage to either FS01 or FS08. Do not recommend a ladder for this paired-area water coverage need.",
     ];
 
     const STATION_BOUNDARIES = {
@@ -1357,6 +1357,7 @@
 
     function shouldFillLadderNeedFirst(station) {
       if (!stationHasRegularLadder(station)) return false;
+      if (station.id === "08" && l1L8AreaNeedsEngine()) return false;
       if ((station.id === "02" || station.id === "22") && !northwestLadderCorridorFullyOut()) return false;
       if (isKempsvilleCorridorStation(station.id) && eligibleEngineAvailableForStation(station.id, getAvailableUnitsAsSet())) return false;
       return true;
@@ -1931,6 +1932,7 @@
     function validCandidatesForStation(station, predicate, remainingUnits = new Set(getAvailableUnits())) {
       return sortUnitsForBackfill(
         [...remainingUnits].filter(unit => {
+          if (station.id === "08" && l1L8AreaNeedsEngine() && !isEngine(unit)) return false;
           if (isBlockedByKempsvilleRule(unit, station.id, remainingUnits)) return false;
           if (sourceEngineShouldGoBeforeLadder(unit, station.id, remainingUnits)) return false;
           if (station.id === "13" && unit === "E1" && otherEligibleCandidateExists("E1", station.id, remainingUnits, predicate)) return false;
@@ -2568,7 +2570,7 @@ Assignment instructions:
 - If L10 is committed and L2 is available, move L2 into the Kempsville corridor only if there is no ladder already located at FS10 or FS07. If L7 is still in quarters at FS07, or L10 is still in quarters at FS10, that satisfies the corridor ladder requirement and the next FS10/FS09/FS07 backfill move should be an Engine when eligible.
 - If E16 and L16 are both available at FS16, prioritize E16 before L16 for emergency backfill. Deprioritize L16 unless E16 is unavailable, ineligible, already committed, already assigned, or a ladder is specifically required.
 - Do not assign E1 to FS13 when another eligible backfill candidate exists. FS13 is E1's furthest option; keep E1 for a more logical station.
-- FS08 does not require backfill only because E8 is out if L8 remains and E1 remains available in the paired FS01/FS08 area. Only require an engine backfill for that area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves; then restore engine water coverage to either FS01 or FS08.
+- FS08 does not require backfill only because E8 is out if L8 remains and E1 remains available in the paired FS01/FS08 area. Only require an engine backfill for that area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves; then restore engine water coverage to either FS01 or FS08. Do not recommend a ladder for this paired-area water coverage need.
 - Rescue Unit Alone / No Water Coverage Warning: if R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. Do not use a Rescue as the solution. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.
 - Rescue Alone / No Water Coverage Backfill Alert: after every selected or recommended move, check whether that move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If yes, display the EMS-only alert and recommend an eligible Engine to that station using existing emergency backfill logic. Do not recommend a Rescue as the solution.
 - Fire Station 7 Rescue 2 source protection: do not recommend moving E7 or L7 for backfill if the move would leave R2 alone at FS07. If E7 and L7 are both out of quarters and R2 remains at FS07, recommend an eligible Engine backfill to FS07.
