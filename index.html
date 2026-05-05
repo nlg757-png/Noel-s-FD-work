@@ -836,6 +836,7 @@
       "Fire Station 15 proximity clarification: FS15 is assigned to Battalion 1 and borders FS01, FS08, and FS11. Because FS15 is not included in the mileage chart, use station boundary, map proximity, and battalion logic for FS15-related moves. Treat FS15 as close to Battalion 1 and Battalion 2 boundary coverage.",
       "Rescue Unit Alone / No Water Coverage Warning: If R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.",
       "Rescue Alone / No Water Coverage Backfill Alert: After every selected or recommended backfill move, check whether the move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If so, display an EMS-only/no-water alert and recommend an eligible Engine backfill using the existing eligibility, boundary, battalion, Kempsville, and coverage-balance logic.",
+      "Fire Station 7 Rescue 2 source protection: Do not recommend moving E7 or L7 for backfill if that move would leave R2 alone at FS07. If both E7 and L7 are out of quarters and R2 remains at FS07, recommend an engine backfill to FS07.",
       "Ladder 1 / Ladder 8 No-Water Coverage Protection Rule: Do not recommend E1 or E8 for backfill when moving that engine would leave L1 and L8 by themselves as the only remaining practical area coverage. L1 is a tiller and does not provide water/fire suppression coverage. Choose another eligible engine when available.",
       "Fire Station 8 / Fire Station 1 paired water coverage rule: If E8 is not at FS08, L8 may remain at FS08 by itself without requiring backfill as long as E1 remains available in the paired area. Only require an engine backfill for the FS01/FS08 area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves. In that case, restore engine water coverage to either FS01 or FS08.",
     ];
@@ -1535,11 +1536,26 @@
       });
     }
 
+    function moveLeavesR2AloneAtFS7(unit, remainingUnits) {
+      if (unit !== "E7" && unit !== "L7") return false;
+      if (unitCurrentStationId(unit) !== "07") return false;
+
+      const unitsLeftAtFS7 = unitsAtStation("07").filter(homeUnit => {
+        if (homeUnit === unit) return false;
+        return remainingUnits.has(homeUnit) || !isBackfillEligible(homeUnit) || isPreLocked(homeUnit);
+      });
+
+      return unitsLeftAtFS7.includes("R2")
+        && !unitsLeftAtFS7.includes("E7")
+        && !unitsLeftAtFS7.includes("L7");
+    }
+
     function sourceStationRisk(unit, remainingUnits) {
       if (unit === "E15" && navy) return 0;
 
       if (isPreUnavailable(unit) || isPreLocked(unit)) return 100;
       if (violatesStation11Minimum(unit)) return 100;
+      if (moveLeavesR2AloneAtFS7(unit, remainingUnits)) return 100;
 
       const home = unitCurrentStation(unit);
       if (!home) return 0;
@@ -2555,6 +2571,7 @@ Assignment instructions:
 - FS08 does not require backfill only because E8 is out if L8 remains and E1 remains available in the paired FS01/FS08 area. Only require an engine backfill for that area when both E1 and E8 are unavailable/out of quarters and L1 and L8 are left by themselves; then restore engine water coverage to either FS01 or FS08.
 - Rescue Unit Alone / No Water Coverage Warning: if R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. Do not use a Rescue as the solution. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.
 - Rescue Alone / No Water Coverage Backfill Alert: after every selected or recommended move, check whether that move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If yes, display the EMS-only alert and recommend an eligible Engine to that station using existing emergency backfill logic. Do not recommend a Rescue as the solution.
+- Fire Station 7 Rescue 2 source protection: do not recommend moving E7 or L7 for backfill if the move would leave R2 alone at FS07. If E7 and L7 are both out of quarters and R2 remains at FS07, recommend an eligible Engine backfill to FS07.
 - If a station cannot be covered, explain why in alerts.
 - If more than one station will remain empty after all available units are assigned, set mutualAid.flag to true and explain that neighboring jurisdiction mutual aid should be requested.
 - Use station IDs in toStation, such as "11", not "FS11".
