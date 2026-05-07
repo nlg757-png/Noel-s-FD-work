@@ -804,9 +804,10 @@
       "Station 11 minimum coverage protection: FS11 must keep at least one Engine and one Ladder in quarters when possible. If E11 is out of service, committed, moved, or not in quarters, E14 cannot be used for outside backfill because FS11 still needs an Engine with L11. When FS11 is being backfilled, restore the Engine and Ladder minimum before using FS11 units elsewhere.",
       "Engine 15 restriction: E15 may only be used for backfill if Navy resources are confirmed staffed at Station 15.",
       "Navy coverage exception: When Navy resources are confirmed staffed at FS15, FS15 is considered covered and E15 may be moved for backfill without creating a new vacant station.",
-      "Ladder backfill order: When moving a Ladder for backfill, use L2 first, then L8.",
+      "Ladder backfill order: When moving a Ladder for backfill, use L2 first, then L8. This ladder order is stronger than mileage optimization. If L2 is available and eligible for the ladder need, use L2 before L8 even if E2 remains in quarters.",
       "Vacant regular-ladder station preference: If the vacant station normally houses a regular Ladder, backfill it with a regular Ladder before an Engine when possible. Use L2 first, then L8 if L2 is committed or already assigned. Tiller-only stations do not trigger this preference.",
       "Engine-and-ladder vacancy priority: When a station that normally has both an Engine and a regular Ladder is fully vacant, fill the ladder need first. Use L2 before E2 or any other engine if L2 is available.",
+      "Multiple engine-and-ladder vacancy rule: If more than one station with both an Engine and a regular Ladder is fully vacant, use only one ladder backfill move, and that ladder should be L2 when available and eligible. If FS21 is one of those vacancies, prioritize the ladder move to FS21 first for southern district ladder coverage. Backfill the other engine-and-ladder station with an Engine and leave the final operational choice to the Battalion Chief.",
       "Northwest ladder corridor exception: FS02 and FS22 are engine-first backfill stations unless FS02 and FS22 are both fully out of service, meaning E2, L2, E22, and L22 are all committed. Only then consider placing a Ladder at FS02 or FS22.",
       "Engine-before-ladder source protection: Except for the L2 then L8 ladder-distribution rule, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.",
       "Rescue centering note: If only one Rescue remains available citywide, mention that Rescue coverage should be centered at FS03 or FS07 if operations allow, but do not assign R1 or R2 as backfill.",
@@ -823,6 +824,7 @@
       "FS05 proximity: For FS05, prefer E21 first when available, then E16, because both are Battalion 4 options and E21 is the closer practical first move.",
       "FS19 mileage refinement: For FS19, E22 is closer than E8 based on the mileage chart. If both are otherwise eligible, rank E22 ahead of E8 for FS19 backfill.",
       "FS12 mileage refinement: For FS12, E8 should rank ahead of E22 when both are otherwise eligible. E8 is closer and is a listed boundary/proximity option for FS12.",
+      "FS16 ladder need refinement: If FS16 is fully vacant because both E16 and L16 are out, fill the ladder need first. Use L2 before E2 for FS16 when L2 is available and eligible.",
       "Rescue station engine protection: E3 cannot be used as a backfill piece because it is housed with R1. R1 cannot backfill and has no water. R2 should not be left without E7 when another equally practical backfill unit is available.",
       "Backfill apparatus eligibility: Only Engines and regular Ladders can backfill a vacant station. Tillers, Rescues, and Tankers cannot be assigned as backfill pieces.",
       "Tiller restriction: L1, L7, and L11 may remain in quarters as their station's apparatus, but they are never to be moved as backfill pieces.",
@@ -835,6 +837,8 @@
       "Engine Backfill Priority by Battalion: After mandatory eligibility, coverage protection, battalion proximity, Kempsville corridor, seasonal, and other policy rules identify valid Engine candidates, use battalion-specific Engine priority as a ranking layer only. Battalion 1 remains location-based with no fixed priority. Battalion 2 priority is E22, E2, E1, with E1 favored for Battalion 1-related coverage and E22 favored for non-Battalion 1 coverage. Battalion 3 prioritizes E16. Battalion 4 prioritizes E21. Battalion 5 prioritizes E7 before E10.",
       "Station Boundary Proximity Rule: After policy-compliant units are identified, prioritize units from listed boundary stations before farther stations unless another stronger operational rule applies. Treat FS10 and FS22 as boundary stations only because of highway quick access. Do not use FS14 because Station 14 does not exist.",
       "Station-to-station mileage preference: After mandatory exclusions and policy rules identify eligible candidates, use the complete station-to-station mileage chart as an additional ranking layer from the unit's current station to the vacancy station. Prefer the closest valid unit when candidates are otherwise valid. FS15 and FS22 mileage values are included from the uploaded supplemental charts.",
+      "Mileage correction: The source spreadsheet lists FS01 to FS09 as 1.06 miles, which is inconsistent with the station geography and surrounding mileage values. Use 10.6 miles for FS01 to FS09 and FS09 to FS01.",
+      "Total-mileage optimizer: For multiple simultaneous vacancies, compare valid move combinations and prefer the plan that covers the most stations with the lowest total station-to-station mileage. This optimizer must still obey apparatus type, source-station coverage, rescue/no-water, FS11, seasonal, and special station rules before mileage is considered.",
       "Fire Station 15 proximity clarification: FS15 is assigned to Battalion 1 and borders FS01, FS08, and FS11. Treat FS15 as close to Battalion 1 and Battalion 2 boundary coverage while also using the added FS15 mileage data when candidates are otherwise valid.",
       "Rescue Unit Alone / No Water Coverage Warning: If R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.",
       "Rescue Alone / No Water Coverage Backfill Alert: After every selected or recommended backfill move, check whether the move left R1 alone at FS03 or left R2 alone at FS07 after both E7 and L7 are out of quarters. If so, display an EMS-only/no-water alert and recommend an eligible Engine backfill using the existing eligibility, boundary, battalion, Kempsville, and coverage-balance logic.",
@@ -886,7 +890,7 @@
     };
 
     const STATION_MILEAGE = {
-      "01": {"01":0,"02":6.4,"03":7.8,"04":3.4,"05":13.9,"06":24.6,"07":9.1,"08":4.6,"09":1.06,"10":14.6,"11":7.8,"12":9.0,"13":26.7,"15":6.7,"16":9.3,"17":18.6,"18":10.9,"19":13.8,"20":9.7,"21":12.6,"22":7.6},
+      "01": {"01":0,"02":6.4,"03":7.8,"04":3.4,"05":13.9,"06":24.6,"07":9.1,"08":4.6,"09":10.6,"10":14.6,"11":7.8,"12":9.0,"13":26.7,"15":6.7,"16":9.3,"17":18.6,"18":10.9,"19":13.8,"20":9.7,"21":12.6,"22":7.6},
       "02": {"01":6.4,"02":0,"03":9.1,"04":3.2,"05":10.8,"06":23.3,"07":3.2,"08":10.0,"09":4.4,"10":6.9,"11":12.3,"12":14.6,"13":22.8,"15":13.2,"16":5.5,"17":19.0,"18":6.8,"19":7.5,"20":6.7,"21":12.3,"22":5.1},
       "03": {"01":7.8,"02":9.1,"03":0,"04":11.2,"05":8.7,"06":18.8,"07":6.9,"08":4.7,"09":7.4,"10":8.9,"11":5.7,"12":8.1,"13":19.2,"15":13.2,"16":3.7,"17":12.6,"18":3.3,"19":6.2,"20":4.7,"21":6.6,"22":13},
       "04": {"01":3.4,"02":3.2,"03":11.2,"04":0,"05":13.3,"06":25.7,"07":5.6,"08":8.3,"09":6.8,"10":10.7,"11":11.1,"12":14.5,"13":25.2,"15":9.8,"16":8.6,"17":21.4,"18":9.2,"19":9.9,"20":9.1,"21":14.7,"22":4.3},
@@ -894,7 +898,7 @@
       "06": {"01":24.6,"02":23.3,"03":18.8,"04":25.7,"05":12.6,"06":0,"07":21.7,"08":20.9,"09":20.3,"10":21.3,"11":19.1,"12":16.1,"13":5.9,"15":25.1,"16":18.9,"17":14.4,"18":17.0,"19":18.4,"20":21.7,"21":12.8,"22":26.7},
       "07": {"01":9.1,"02":3.2,"03":6.9,"04":5.6,"05":9.3,"06":21.7,"07":0,"08":8.4,"09":2.3,"10":4.8,"11":9.3,"12":12.2,"13":20.4,"15":15.7,"16":3.5,"17":16.6,"18":4.4,"19":5.0,"20":4.7,"21":9.9,"22":5.1},
       "08": {"01":4.6,"02":10.0,"03":4.7,"04":8.3,"05":10.8,"06":20.9,"07":8.4,"08":0,"09":10.0,"10":11.8,"11":4.1,"12":6.6,"13":23.5,"15":11.3,"16":6.0,"17":14.9,"18":7.9,"19":10.7,"20":6.6,"21":9.0,"22":14.6},
-      "09": {"01":1.06,"02":4.4,"03":7.4,"04":6.8,"05":8.0,"06":20.3,"07":2.3,"08":10.0,"09":0,"10":2.6,"11":10.7,"12":14.0,"13":19.3,"15":17.3,"16":4.6,"17":16.5,"18":4.5,"19":3.9,"20":6.7,"21":9.9,"22":6.9},
+      "09": {"01":10.6,"02":4.4,"03":7.4,"04":6.8,"05":8.0,"06":20.3,"07":2.3,"08":10.0,"09":0,"10":2.6,"11":10.7,"12":14.0,"13":19.3,"15":17.3,"16":4.6,"17":16.5,"18":4.5,"19":3.9,"20":6.7,"21":9.9,"22":6.9},
       "10": {"01":14.6,"02":6.9,"03":8.9,"04":10.7,"05":9.0,"06":21.3,"07":4.8,"08":11.8,"09":2.6,"10":0,"11":13.6,"12":13.8,"13":19.4,"15":19.5,"16":6.2,"17":17.4,"18":5.4,"19":3.6,"20":8.9,"21":10.7,"22":7.1},
       "11": {"01":7.8,"02":12.3,"03":5.7,"04":11.1,"05":9.5,"06":19.1,"07":9.3,"08":4.1,"09":10.7,"10":13.6,"11":0,"12":3.4,"13":22.7,"15":6.9,"16":6.9,"17":13.1,"18":8.9,"19":11.9,"20":7.6,"21":7.2,"22":16.2},
       "12": {"01":9.0,"02":14.6,"03":8.1,"04":14.5,"05":6.5,"06":16.1,"07":12.2,"08":6.6,"09":14.0,"10":13.8,"11":3.4,"12":0,"13":20.6,"15":9.6,"16":8.0,"17":11.1,"18":9.6,"19":12.1,"20":8.8,"21":5.2,"22":17.8},
@@ -1822,6 +1826,10 @@
         if (unit === "E22") return 0;
         if (unit === "E8") return 25;
       }
+      if (toStationId === "16") {
+        if (unit === "L2") return 0;
+        if (unit === "E2") return 25;
+      }
       return 10;
     }
 
@@ -1831,6 +1839,9 @@
       }
       if (station.id === "19" && unit === "E22") {
         return "Station-specific proximity: E22 was ranked ahead of E8 for FS19 because the mileage chart shows E22 is closer.";
+      }
+      if (station.id === "16" && unit === "L2") {
+        return "Station-specific ladder need: FS16 was fully vacant with its engine and ladder out, so L2 was ranked ahead of E2 to restore ladder coverage first.";
       }
       return "";
     }
@@ -2078,6 +2089,14 @@
         return [...candidates].sort((a, b) => {
           const rankA = Object.prototype.hasOwnProperty.call(fs12Order, a) ? fs12Order[a] : 10;
           const rankB = Object.prototype.hasOwnProperty.call(fs12Order, b) ? fs12Order[b] : 10;
+          return rankA - rankB || candidates.indexOf(a) - candidates.indexOf(b);
+        });
+      }
+      if (station.id === "16") {
+        const fs16Order = { L2: 0, E2: 25 };
+        return [...candidates].sort((a, b) => {
+          const rankA = Object.prototype.hasOwnProperty.call(fs16Order, a) ? fs16Order[a] : 10;
+          const rankB = Object.prototype.hasOwnProperty.call(fs16Order, b) ? fs16Order[b] : 10;
           return rankA - rankB || candidates.indexOf(a) - candidates.indexOf(b);
         });
       }
@@ -2593,9 +2612,12 @@ Assignment instructions:
 - Use the map to prefer the closest practical source company after hard source-station protection. For FS02, FS07 is the closest practical source, so E7 should be preferred when available.
 - For FS05, prefer E21 first when available, then E16, because both are Battalion 4 options and E21 is the closer practical first move.
 - For FS10, prefer E22 when available for engine backfill. For FS19, prefer E21 when available for engine backfill. If comparing E22 and E8 for FS19, rank E22 ahead of E8 because the mileage chart shows E22 is closer. For FS12, rank E8 ahead of E22 when both are otherwise eligible because E8 is closer and is a boundary/proximity option.
+- If FS16 is fully vacant because E16 and L16 are both out, restore the ladder need first. Use L2 before E2 for FS16 when L2 is available and eligible.
 - R1 and R2 should not be left at their home station without an Engine if an equally close/practical option exists, but this should not block a closest practical map-based move when that station still has staffed apparatus in quarters.
 - Never assign L1, L7, L11, R1, R2, T5, T6, or T13 as backfill. Mention Rescue centering as a note only; do not use a Rescue as the backfill piece.
 - If the vacant station normally houses a regular Ladder, prefer a regular Ladder backfill before an Engine when possible. Use L2 first, then L8 if L2 is unavailable or already assigned. Tiller-only stations do not trigger this preference.
+- Ladder backfill order is stronger than mileage optimization. If L2 is available and eligible for a ladder backfill need, use L2 before L8, even when leaving E2 in quarters produces slightly higher mileage.
+- If more than one engine-and-regular-ladder station is fully vacant, use only one ladder backfill move. That ladder should be L2 when available and eligible. If FS21 is one of the engine-and-ladder vacancies, place the ladder at FS21 first because of southern district ladder coverage. Backfill the other engine-and-ladder vacancy with an Engine so the Battalion Chief can make the final operational decision.
 - When a station with both an Engine and a regular Ladder is fully vacant, fill the ladder need first. Use L2 before E2 or any other engine if L2 is available.
 - FS02 and FS22 are exceptions because of northwest corridor ladder coverage. Backfill FS02 or FS22 with an Engine first unless E2, L2, E22, and L22 are all committed. Only then consider a Ladder at FS02 or FS22.
 - Outside the L2/L8 ladder-distribution exception, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.
@@ -2603,6 +2625,7 @@ Assignment instructions:
 - Engine Backfill Priority by Battalion: apply only after mandatory eligibility, coverage protection, battalion proximity, Kempsville corridor, seasonal, and policy rules. Battalion 1 stays location-based with no fixed Engine order. Battalion 2 Engine order is E22, E2, E1; E1 may receive a Battalion 1 proximity advantage, and E22 is favored for non-Battalion 1 coverage. Battalion 3 prioritizes E16, Battalion 4 prioritizes E21, and Battalion 5 prioritizes E7 before E10.
 - Station Boundary Proximity Rule: after eligible candidates are identified, rank candidates from listed boundary stations ahead of farther stations unless a stronger operational rule applies. Do not use Station 14. Treat FS10 and FS22 as boundary stations only because of highway quick access / west-side highway access, and explain that note when that relationship affects a move.
 - Station-to-station mileage preference: after hard exclusions and policy rules identify eligible candidates, prefer the closest valid unit based on station-to-station mileage from the unit's current station to the vacancy station. Mileage does not override mandatory rules. FS15 and FS22 mileage values are included from the supplemental mileage charts, including the FS15-to-FS22 distance.
+- Total-mileage optimizer: for multiple simultaneous vacancies, compare valid move combinations and prefer the plan that covers the most stations with the lowest total station-to-station mileage. Reject combinations that uncover source stations, move both engine and ladder out of the same source station, use a ladder where no ladder move is appropriate, leave a rescue without water coverage, or violate FS11 and seasonal rules.
 - If E10 is committed, do not recommend L10 to backfill FS09. Keep L10 at FS10 for Kempsville corridor coverage.
 - If a ladder is already located at FS10, FS09, or FS07, the Kempsville corridor has ladder coverage. For FS10/FS09/FS07 backfill needs, prioritize an eligible Engine before moving another Ladder into that corridor unless another mandatory rule requires the Ladder.
 - If L10 is committed and L2 is available, move L2 into the Kempsville corridor only if there is no ladder already located at FS10 or FS07. If L7 is still in quarters at FS07, or L10 is still in quarters at FS10, that satisfies the corridor ladder requirement and the next FS10/FS09/FS07 backfill move should be an Engine when eligible.
@@ -2697,6 +2720,35 @@ Required JSON shape:
         return canMoveFromSource("E8", remainingUnits);
       }
 
+      function optimizedLadderNeedStations() {
+        return vacantStations.filter(station => !coveredStations.has(station.id) && shouldFillLadderNeedFirst(station));
+      }
+
+      function multipleOptimizedLadderNeedsActive() {
+        return optimizedLadderNeedStations().length > 1;
+      }
+
+      function fs21LadderPriorityActive() {
+        return multipleOptimizedLadderNeedsActive() && optimizedLadderNeedStations().some(station => station.id === "21");
+      }
+
+      function l2CanServeOptimizedLadderNeed(station) {
+        if (!remainingUnits.has("L2")) return false;
+        if (isBlockedByKempsvilleRule("L2", station.id, remainingUnits)) return false;
+        if (leavesL1L8NoWaterArea("L2", remainingUnits)) return false;
+        if (violatesStation11Minimum("L2")) return false;
+        return canMoveFromSource("L2", remainingUnits);
+      }
+
+      function l2CanServeAnyOptimizedLadderNeed() {
+        return optimizedLadderNeedStations().some(l2CanServeOptimizedLadderNeed);
+      }
+
+      function l2CanServeFS21LadderNeed() {
+        const fs21 = optimizedLadderNeedStations().find(station => station.id === "21");
+        return fs21 ? l2CanServeOptimizedLadderNeed(fs21) : false;
+      }
+
       function pick(station, predicate) {
         const station11EngineAlreadyAssigned = assignments.some(assignment => assignment.unit === "E11" || assignment.unit === "E14");
         return sortUnitsForBackfill(
@@ -2713,6 +2765,159 @@ Required JSON shape:
           station.id,
           remainingUnits
         )[0];
+      }
+
+      function unitAllowedForOptimizedStation(unit, station) {
+        if (multipleOptimizedLadderNeedsActive() && shouldFillLadderNeedFirst(station)) {
+          if (fs21LadderPriorityActive() && station.id !== "21") return isEngine(unit);
+          return unit === "L2" || isEngine(unit);
+        }
+        if (shouldFillLadderNeedFirst(station)) return isRegularLadder(unit);
+        if (isEngine(unit)) return true;
+        if (!isRegularLadder(unit)) return false;
+        if (!stationHasRegularLadder(station)) return false;
+        return shouldFillLadderNeedFirst(station) || !eligibleEngineAvailableForStation(station.id, remainingUnits);
+      }
+
+      function optimizedCandidateUnits(station) {
+        const candidates = sortUnitsForBackfill(
+          [...remainingUnits].filter(unit => {
+            if (!unitAllowedForOptimizedStation(unit, station)) return false;
+            if (isBlockedByKempsvilleRule(unit, station.id, remainingUnits)) return false;
+            if (sourceEngineShouldGoBeforeLadder(unit, station.id, remainingUnits)) return false;
+            if (station.id === "13" && unit === "E1" && otherEligibleCandidateExists("E1", station.id, remainingUnits, candidate => unitAllowedForOptimizedStation(candidate, station))) return false;
+            if (leavesL1L8NoWaterArea(unit, remainingUnits)) return false;
+            if (violatesStation11Minimum(unit)) return false;
+            if (!canMoveFromSource(unit, remainingUnits)) return false;
+            return true;
+          }),
+          station.id,
+          remainingUnits
+        );
+
+        return candidates
+          .sort((a, b) => {
+            const mileageA = unitMileageToStation(a, station.id);
+            const mileageB = unitMileageToStation(b, station.id);
+            const seasonalPenaltyA = seasonal && (a === "E11" || a === "E14") ? 1000 : 0;
+            const seasonalPenaltyB = seasonal && (b === "E11" || b === "E14") ? 1000 : 0;
+            return seasonalPenaltyA - seasonalPenaltyB
+              || ladderBackfillOrder(a) - ladderBackfillOrder(b)
+              || (typeof mileageA === "number" ? mileageA : 999) - (typeof mileageB === "number" ? mileageB : 999)
+              || stationSpecificBackfillRank(a, station.id) - stationSpecificBackfillRank(b, station.id)
+              || a.localeCompare(b, undefined, { numeric: true });
+          })
+          .slice(0, 6);
+      }
+
+      function optimizedPlanKeepsSourceCoverage(plan) {
+        const planUnits = new Set(plan.map(move => move.unit));
+        const planStations = new Set(plan.map(move => move.station.id));
+        const movedUnits = new Set([...assignments.map(assignment => assignment.unit), ...planUnits]);
+        const assignedStations = new Set([...coveredStations, ...planStations]);
+
+        if (movedUnits.has("E11") && movedUnits.has("E14")) return false;
+
+        if (!assignedStations.has("11") && (!station11HasEngineAfterMove(null, movedUnits) || !station11HasLadderAfterMove(null, movedUnits))) {
+          return false;
+        }
+
+        if (unitPresentAtStation("R2", "07", movedUnits) && !unitPresentAtStation("E7", "07", movedUnits) && !unitPresentAtStation("L7", "07", movedUnits)) {
+          return false;
+        }
+
+        if (unitPresentAtStation("R1", "03", movedUnits) && !stationHasWaterCoverage("03", movedUnits)) {
+          return false;
+        }
+
+        if (l1L8AreaNeedsEngine(movedUnits) && !assignedStations.has("01") && !assignedStations.has("08")) {
+          return false;
+        }
+
+        if (multipleOptimizedLadderNeedsActive()) {
+          const ladderNeedMoves = plan.filter(move => shouldFillLadderNeedFirst(move.station) && isRegularLadder(move.unit));
+          if (ladderNeedMoves.length > 1) return false;
+          if (ladderNeedMoves.some(move => move.unit !== "L2")) return false;
+          if (fs21LadderPriorityActive() && ladderNeedMoves.some(move => move.station.id !== "21")) return false;
+        }
+
+        return STATIONS.every(station => {
+          if (station.navy && navy) return true;
+          if (assignedStations.has(station.id)) return true;
+          const wasAlreadyVacant = vacantStations.some(vacant => vacant.id === station.id);
+          if (wasAlreadyVacant) return true;
+          if (stationCoveredByL1L8AreaRule(station.id, movedUnits)) return true;
+          return unitsAtStation(station.id, movedUnits).some(countsAsHomeCoverage);
+        });
+      }
+
+      function optimizedPlanScore(plan) {
+        let score = plan.reduce((total, move) => {
+          const mileage = unitMileageToStation(move.unit, move.station.id);
+          const seasonalPenalty = seasonal && (move.unit === "E11" || move.unit === "E14") ? 1000 : 0;
+          const ladderPenalty = isRegularLadder(move.unit) && !shouldFillLadderNeedFirst(move.station) ? 50 : 0;
+          const ladderOrderPenalty = isRegularLadder(move.unit) && shouldFillLadderNeedFirst(move.station) ? ladderBackfillOrder(move.unit) * 100 : 0;
+          return total + (typeof mileage === "number" ? mileage : 100) + seasonalPenalty + ladderPenalty + ladderOrderPenalty;
+        }, 0);
+        if (multipleOptimizedLadderNeedsActive() && l2CanServeAnyOptimizedLadderNeed()) {
+          const usesL2ForLadderNeed = plan.some(move => move.unit === "L2" && shouldFillLadderNeedFirst(move.station));
+          if (!usesL2ForLadderNeed) score += 500;
+        }
+        if (fs21LadderPriorityActive() && l2CanServeFS21LadderNeed()) {
+          const usesL2ForFS21 = plan.some(move => move.unit === "L2" && move.station.id === "21");
+          if (!usesL2ForFS21) score += 1000;
+        }
+        return score;
+      }
+
+      function optimizeRemainingVacancies(stations) {
+        const remainingStations = stations.filter(station => !coveredStations.has(station.id));
+        if (!remainingStations.length) return [];
+
+        const stationCandidates = new Map(remainingStations.map(station => [station.id, optimizedCandidateUnits(station)]));
+        const orderedStations = [...remainingStations].sort((a, b) => {
+          return (stationCandidates.get(a.id) || []).length - (stationCandidates.get(b.id) || []).length;
+        });
+        let bestPlan = [];
+        let bestCovered = -1;
+        let bestScore = Infinity;
+        let searchCount = 0;
+        const maxSearchCount = 150000;
+
+        function search(index, usedUnits, plan) {
+          searchCount += 1;
+          if (searchCount > maxSearchCount) return;
+
+          if (index >= orderedStations.length) {
+            if (!optimizedPlanKeepsSourceCoverage(plan)) return;
+            const covered = plan.length;
+            const score = optimizedPlanScore(plan);
+            if (covered > bestCovered || (covered === bestCovered && score < bestScore)) {
+              bestCovered = covered;
+              bestScore = score;
+              bestPlan = plan.map(move => ({ ...move }));
+            }
+            return;
+          }
+
+          const station = orderedStations[index];
+          search(index + 1, usedUnits, plan);
+
+          (stationCandidates.get(station.id) || []).forEach(unit => {
+            if (usedUnits.has(unit)) return;
+            usedUnits.add(unit);
+            plan.push({ unit, station });
+            search(index + 1, usedUnits, plan);
+            plan.pop();
+            usedUnits.delete(unit);
+          });
+        }
+
+        search(0, new Set(), []);
+        if (searchCount > maxSearchCount) {
+          alerts.push("Mileage optimizer reviewed the strongest valid options and stopped at the safety limit. Review the final moves if this is a very large incident.");
+        }
+        return bestPlan;
       }
 
       function handleRescueAloneNoWaterRecommendations() {
@@ -2781,11 +2986,8 @@ Required JSON shape:
 
         const corridor = vacantStations.find(station => (station.id === "09" || station.id === "10") && !coveredStations.has(station.id));
         if (corridor) {
-          const engine = corridorHasLadderForCurrentPlan()
-            ? pick(corridor, isEngine)
-            : null;
-          if (engine) {
-            assign(engine, corridor, "The Kempsville corridor already has ladder coverage from a ladder positioned at Station 10, Station 9, or Station 7. An engine was prioritized for backfill to avoid unnecessarily moving an additional ladder into the corridor.");
+          if (corridorHasLadderForCurrentPlan()) {
+            alerts.push("The Kempsville corridor already has ladder coverage from a ladder positioned at Station 10, Station 9, or Station 7. Engine backfills for FS09/FS10 were left for the total-mileage optimizer.");
           } else {
             const ladder = pick(corridor, isRegularLadder);
             if (ladder) {
@@ -2810,55 +3012,19 @@ Required JSON shape:
         alerts.push("Ladder 10 was not recommended for Company 9 because Engine 10 is committed. Ladder 10 should remain at Company 10 to maintain Kempsville corridor coverage.");
       }
 
-      vacantStations
-        .filter(station => shouldFillLadderNeedFirst(station) && station.id !== "11")
-        .forEach(station => {
-          if (coveredStations.has(station.id)) return;
-          const unit = pickLadderForLadderStation(station, remainingUnits);
-          if (unit) {
-            assign(unit, station, `${stationLabel(station)} is an engine-and-ladder station that is fully vacant. Use ${unit} first to fill the ladder need before sending an engine.`);
-          }
-        });
+      const optimizedMoves = optimizeRemainingVacancies(vacantStations);
+      if (optimizedMoves.length) {
+        alerts.push("Total-mileage optimizer applied. The planner compared valid move combinations, protected source stations, and selected the lowest-mileage complete plan it could find.");
+      }
 
-      vacantStations.forEach(station => {
-        if (coveredStations.has(station.id)) return;
-
-        let unit = null;
-
-        if (shouldFillLadderNeedFirst(station)) {
-          unit = pickLadderForLadderStation(station, remainingUnits);
-          if (unit) {
-            assign(unit, station, `${stationLabel(station)} is an engine-and-ladder station that is fully vacant. Use ${unit} first to fill the ladder need before sending an engine.`);
-            return;
-          }
-        }
-
-        unit = pick(station, unitId => isEngine(unitId) && (!seasonal || (unitId !== "E11" && unitId !== "E14")));
-        if (unit) {
-          const reason = isKempsvilleCorridorStation(station.id) && corridorHasLadderForCurrentPlan()
-            ? `${stationLabel(station)} is vacant. The Kempsville corridor already has ladder coverage from a ladder positioned at Station 10, Station 9, or Station 7. An engine was prioritized for backfill to avoid unnecessarily moving an additional ladder into the corridor.`
-            : `${stationLabel(station)} is vacant. Assign an engine to restore pump coverage.`;
-          assign(unit, station, reason);
-          return;
-        }
-
-        unit = pick(station, isRegularLadder);
-        if (unit) {
-          assign(unit, station, `${stationLabel(station)} is vacant. No engine was available, so use a ladder with a pump for coverage.`);
-          return;
-        }
-
-        unit = pick(station, unitId => isEngine(unitId));
-        if (unit) {
-          assign(unit, station, `${stationLabel(station)} is vacant. Use ${unit} as a last-resort engine move.`);
-          return;
-        }
-
-        unit = pick(station, isBackfillEligible);
-        if (unit) {
-          assign(unit, station, `${stationLabel(station)} is vacant. Use the closest practical backfill-capable apparatus to avoid leaving the station empty.`);
-          return;
-        }
+      optimizedMoves.forEach(move => {
+        const station = move.station;
+        const reason = shouldFillLadderNeedFirst(station)
+          ? `${stationLabel(station)} is an engine-and-ladder station that is fully vacant. The optimized plan uses a ladder-capable move only because the station has a ladder need.`
+          : isKempsvilleCorridorStation(station.id) && corridorHasLadderForCurrentPlan()
+            ? `${stationLabel(station)} is vacant. The Kempsville corridor already has ladder coverage, so the optimized plan prioritized an engine while reducing total travel mileage.`
+            : `${stationLabel(station)} is vacant. The optimized plan selected this valid unit to reduce total travel mileage without uncovering its source station.`;
+        assign(move.unit, station, reason);
       });
 
       vacantStations.forEach(station => {
