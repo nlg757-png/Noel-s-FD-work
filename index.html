@@ -808,6 +808,7 @@
       "Vacant regular-ladder station preference: If the vacant station normally houses a regular Ladder, backfill it with a regular Ladder before an Engine when possible. Use L2 first, then L8 if L2 is committed or already assigned. Tiller-only stations do not trigger this preference.",
       "Engine-and-ladder vacancy priority: When a station that normally has both an Engine and a regular Ladder is fully vacant, fill the ladder need first. Use L2 before E2 or any other engine if L2 is available.",
       "Multiple engine-and-ladder vacancy rule: If more than one station with both an Engine and a regular Ladder is fully vacant, use only one ladder backfill move, and that ladder should be L2 when available and eligible. If FS21 is one of those vacancies, prioritize the ladder move to FS21 first for southern district ladder coverage. Backfill the other engine-and-ladder station with an Engine and leave the final operational choice to the Battalion Chief.",
+      "Engine fallback for ladder stations: If a fully vacant engine-and-ladder station needs coverage but no regular Ladder can legally move without creating another coverage gap, assign an eligible Engine rather than leaving that station empty.",
       "Northwest ladder corridor exception: FS02 and FS22 are engine-first backfill stations unless FS02 and FS22 are both fully out of service, meaning E2, L2, E22, and L22 are all committed. Only then consider placing a Ladder at FS02 or FS22.",
       "Engine-before-ladder source protection: Except for the L2 then L8 ladder-distribution rule, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.",
       "Rescue centering note: If only one Rescue remains available citywide, mention that Rescue coverage should be centered at FS03 or FS07 if operations allow, but do not assign R1 or R2 as backfill.",
@@ -838,6 +839,7 @@
       "Station Boundary Proximity Rule: After policy-compliant units are identified, prioritize units from listed boundary stations before farther stations unless another stronger operational rule applies. Treat FS10 and FS22 as boundary stations only because of highway quick access. Do not use FS14 because Station 14 does not exist.",
       "Station-to-station mileage preference: After mandatory exclusions and policy rules identify eligible candidates, use the complete station-to-station mileage chart as an additional ranking layer from the unit's current station to the vacancy station. Prefer the closest valid unit when candidates are otherwise valid. FS15 and FS22 mileage values are included from the uploaded supplemental charts.",
       "Mileage correction: The source spreadsheet lists FS01 to FS09 as 1.06 miles, which is inconsistent with the station geography and surrounding mileage values. Use 10.6 miles for FS01 to FS09 and FS09 to FS01.",
+      "Fire Station 11 mileage priority: When selecting the Engine backfill for FS11, use the closest eligible practical Engine by station-to-station mileage before battalion engine priority. Do not let E22 outrank closer valid engines such as E7 solely because Battalion 2 is listed in the Battalion 1 proximity order.",
       "Total-mileage optimizer: For multiple simultaneous vacancies, compare valid move combinations and prefer the plan that covers the most stations with the lowest total station-to-station mileage. This optimizer must still obey apparatus type, source-station coverage, rescue/no-water, FS11, seasonal, and special station rules before mileage is considered.",
       "Fire Station 15 proximity clarification: FS15 is assigned to Battalion 1 and borders FS01, FS08, and FS11. Treat FS15 as close to Battalion 1 and Battalion 2 boundary coverage while also using the added FS15 mileage data when candidates are otherwise valid.",
       "Rescue Unit Alone / No Water Coverage Warning: If R1 is alone at FS03 without E3, or R2 is alone at FS07 after both E7 and L7 are out of quarters, warn that the station has EMS coverage only and recommend an eligible Engine backfill. For FS07, both E7 and L7 must be out before the Rescue 2 alert triggers.",
@@ -1464,6 +1466,18 @@
       });
     }
 
+    function eligibleRegularLadderAvailableForStation(stationId, remainingUnits) {
+      return [...remainingUnits].some(unit => {
+        if (!isRegularLadder(unit)) return false;
+        if (!canMoveFromSource(unit, remainingUnits)) return false;
+        if (isBlockedByKempsvilleRule(unit, stationId, remainingUnits)) return false;
+        if (sourceEngineShouldGoBeforeLadder(unit, stationId, remainingUnits)) return false;
+        if (leavesL1L8NoWaterArea(unit, remainingUnits)) return false;
+        if (violatesStation11Minimum(unit)) return false;
+        return true;
+      });
+    }
+
     function kempsvillePriorityLadderTarget(vacantStations, remainingUnits) {
       if (!committed.has("L10")) return null;
       if (!remainingL2CanMove(remainingUnits)) return null;
@@ -1833,6 +1847,12 @@
       return 10;
     }
 
+    function station11EngineMileagePriority(unit, toStationId) {
+      if (toStationId !== "11" || !isEngine(unit)) return 0;
+      const mileage = unitMileageToStation(unit, toStationId);
+      return typeof mileage === "number" ? mileage : 100;
+    }
+
     function stationSpecificSelectionNote(unit, station) {
       if (station.id === "12" && unit === "E8") {
         return "Station-specific proximity: E8 was ranked ahead of E22 for FS12 because E8 is closer and is a boundary/proximity option.";
@@ -1885,6 +1905,8 @@
         const battalionB = battalionScore(b, toStationId, remainingUnits);
         const enginePriorityA = engineBackfillPriorityScore(a, toStationId);
         const enginePriorityB = engineBackfillPriorityScore(b, toStationId);
+        const station11EngineMileageA = station11EngineMileagePriority(a, toStationId);
+        const station11EngineMileageB = station11EngineMileagePriority(b, toStationId);
         const stationSpecificA = stationSpecificBackfillRank(a, toStationId);
         const stationSpecificB = stationSpecificBackfillRank(b, toStationId);
         const station16A = station16LadderPenalty(a, toStationId, remainingUnits);
@@ -1898,6 +1920,7 @@
 
         return seasonalA - seasonalB
           || proximityA - proximityB
+          || station11EngineMileageA - station11EngineMileageB
           || boundaryScoreA - boundaryScoreB
           || boundaryRankA - boundaryRankB
           || adjacentA - adjacentB
@@ -2619,6 +2642,7 @@ Assignment instructions:
 - Ladder backfill order is stronger than mileage optimization. If L2 is available and eligible for a ladder backfill need, use L2 before L8, even when leaving E2 in quarters produces slightly higher mileage.
 - If more than one engine-and-regular-ladder station is fully vacant, use only one ladder backfill move. That ladder should be L2 when available and eligible. If FS21 is one of the engine-and-ladder vacancies, place the ladder at FS21 first because of southern district ladder coverage. Backfill the other engine-and-ladder vacancy with an Engine so the Battalion Chief can make the final operational decision.
 - When a station with both an Engine and a regular Ladder is fully vacant, fill the ladder need first. Use L2 before E2 or any other engine if L2 is available.
+- If a fully vacant engine-and-ladder station cannot receive a regular Ladder because every eligible ladder move would create another coverage gap, backfill that station with an eligible Engine rather than leaving it empty.
 - FS02 and FS22 are exceptions because of northwest corridor ladder coverage. Backfill FS02 or FS22 with an Engine first unless E2, L2, E22, and L22 are all committed. Only then consider a Ladder at FS02 or FS22.
 - Outside the L2/L8 ladder-distribution exception, if a source station has both an Engine and a regular Ladder available, move the Engine before moving that station's Ladder.
 - Battalion Proximity and Coverage Balance Rule: after eligible candidates are identified, rank by battalion proximity and coverage balance. Penalize non-listed battalions, the last available unit in a battalion, and moves that leave a battalion poorly covered. Use this only as a ranking layer among eligible options.
@@ -2772,7 +2796,9 @@ Required JSON shape:
           if (fs21LadderPriorityActive() && station.id !== "21") return isEngine(unit);
           return unit === "L2" || isEngine(unit);
         }
-        if (shouldFillLadderNeedFirst(station)) return isRegularLadder(unit);
+        if (shouldFillLadderNeedFirst(station)) {
+          return isRegularLadder(unit) || (isEngine(unit) && !eligibleRegularLadderAvailableForStation(station.id, remainingUnits));
+        }
         if (isEngine(unit)) return true;
         if (!isRegularLadder(unit)) return false;
         if (!stationHasRegularLadder(station)) return false;
@@ -3019,8 +3045,10 @@ Required JSON shape:
 
       optimizedMoves.forEach(move => {
         const station = move.station;
-        const reason = shouldFillLadderNeedFirst(station)
-          ? `${stationLabel(station)} is an engine-and-ladder station that is fully vacant. The optimized plan uses a ladder-capable move only because the station has a ladder need.`
+        const reason = shouldFillLadderNeedFirst(station) && isRegularLadder(move.unit)
+          ? `${stationLabel(station)} is an engine-and-ladder station that is fully vacant. The optimized plan uses a ladder-capable move because the station has a ladder need.`
+          : shouldFillLadderNeedFirst(station)
+            ? `${stationLabel(station)} is an engine-and-ladder station that is fully vacant. No regular Ladder could legally move without creating another coverage gap, so the optimized plan assigned an eligible Engine rather than leaving the station empty.`
           : isKempsvilleCorridorStation(station.id) && corridorHasLadderForCurrentPlan()
             ? `${stationLabel(station)} is vacant. The Kempsville corridor already has ladder coverage, so the optimized plan prioritized an engine while reducing total travel mileage.`
             : `${stationLabel(station)} is vacant. The optimized plan selected this valid unit to reduce total travel mileage without uncovering its source station.`;
